@@ -35,9 +35,7 @@ body{margin:0;display:flex;background:var(--bg);font-family:Lato,Arial,sans-seri
 /* The theme pins .scard's border and background with !important, so the selected state
    has to outrank it: green border, soft green fill and a "showing below" tag. */
 .scard.sc-click.on{border:1.5px solid #2f6b4f!important;background:#eef7f1!important;box-shadow:0 0 0 4px rgba(47,107,79,.14)!important;position:relative}
-.scard.sc-click.on::after{content:'Showing below';position:absolute;right:12px;bottom:10px;font-size:10.5px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:#1e4a36;background:#d9efe2;border-radius:7px;padding:3px 8px}
 .scard.sc-click.on .sc-ic{background:#2f6b4f!important}.scard.sc-click.on .sc-ic svg{stroke:#fff!important}
-.scard.sc-click.on .sc-sub,.scard.sc-click.on .sc-delta{padding-right:112px}
 .fin-top{align-items:start}
 /* partials.responsive still reserves a 320px donut column on laptops; outrank it. */
 .main .fin-top{grid-template-columns:minmax(0,1fr)!important}
@@ -437,6 +435,8 @@ document.querySelectorAll('.sc-click').forEach(card=>card.addEventListener('clic
   const panel=document.querySelector('.main>.panel'); if(panel)panel.scrollIntoView({behavior:'smooth',block:'start'});
 }));
 document.getElementById('fStatus').addEventListener('change',()=>{const v=document.getElementById('fStatus').value;document.querySelectorAll('.sc-click').forEach(c=>c.classList.toggle('on',c.dataset.filter===v));});
+// Total Balance covers every record, so it is the selected card when the page opens.
+(()=>{const v=document.getElementById('fStatus').value||'';document.querySelectorAll('.sc-click').forEach(c=>c.classList.toggle('on',c.dataset.filter===v));})();
 function mxDate(){const d=document.getElementById('mDate');return d?d.value:'';}
 (function(){const d=document.getElementById('mDate');if(d)d.addEventListener('change',applyFilters);})();
 function mxViewAll(){['mSearch','fSearch','mCat','fCat','mStatus','fStatus','mDate'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});applyFilters();}
