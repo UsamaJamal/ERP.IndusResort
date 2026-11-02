@@ -25,7 +25,7 @@ body{margin:0;display:flex;background:var(--bg);font-family:Lato,Arial,sans-seri
 .tool svg{width:20px;height:20px;fill:none;stroke:#4a4a4a;stroke-width:1.8}
 .tool.bell:after{content:'';position:absolute;top:9px;right:11px;width:8px;height:8px;border-radius:50%;background:var(--red);border:2px solid #fff}
 /* top area: stats+earnings on left, donut on right */
-.fin-top{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:20px;margin-bottom:20px}
+.fin-top{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;margin-bottom:20px}
 .fin-left{display:grid;gap:20px;align-content:start}
 .stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
 .fin-row2{margin-top:16px}
@@ -39,6 +39,8 @@ body{margin:0;display:flex;background:var(--bg);font-family:Lato,Arial,sans-seri
 .scard.sc-click.on .sc-ic{background:#2f6b4f!important}.scard.sc-click.on .sc-ic svg{stroke:#fff!important}
 .scard.sc-click.on .sc-sub,.scard.sc-click.on .sc-delta{padding-right:112px}
 .fin-top{align-items:start}
+/* partials.responsive still reserves a 320px donut column on laptops; outrank it. */
+.main .fin-top{grid-template-columns:minmax(0,1fr)!important}
 .sc-sub{width:100%;color:#8b948f;font-size:11.5px;margin-top:2px}
 .sc-num.neg{color:#b3352f}
 .sc-ic.amber{background:#fdf1d3}.sc-ic.amber svg{stroke:#9a7100}
@@ -224,7 +226,9 @@ footer{display:flex;justify-content:space-between;align-items:center;padding:20p
 {{-- Earnings chart disabled on request.
 <section class="mx-card"><div class="mx-h"><h2>Earnings Overview</h2><span class="mx-year"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg>This Year<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></div><div class="mx-leg"><span><i style="background:#2f6b4f"></i>Income</span><span><i style="background:#bcd9c8"></i>Expense</span></div><div class="mx-chart"><div class="mx-y" id="mxY"></div><div class="mx-plot" id="mxPlot"><div class="zero"></div></div></div><div class="mx-x" id="mxX"></div></section>
 --}}
+{{-- Income/Expense donut disabled on request.
 <section class="mx-card"><div class="mx-tog"><button type="button" id="mxIncBtn" onclick="mxDonut('income')">Income</button><button type="button" class="on" id="mxExpBtn" onclick="mxDonut('expense')">Expense</button></div><div class="mx-donut" id="mxDonut"><div class="c"><b id="mxTotal"></b><small id="mxLabel"></small></div></div><div class="mx-dl" id="mxLegend"></div></section>
+--}}
 <section class="mx-card">
 <div class="mx-h"><h2>Transactions</h2><div style="display:flex;align-items:center;gap:12px"><button class="exp-report-btn" type="button" onclick="openExpenseReport()">Export PDF</button><a class="mx-link" href="javascript:void(0)" onclick="mxViewAll()">View All <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></a></div></div>
 <div class="mx-flt"><label class="ms-search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="mSearch" type="search" placeholder="Search records..."></label><select class="ms-sel" id="mCat"><option value="">All Category</option>@foreach($categoryGroups as $group => $items)<optgroup label="{{ $group }}">@foreach($items as $item)<option>{{ $item }}</option>@endforeach</optgroup>@endforeach</select><select class="ms-sel" id="mStatus"><option value="">All Records</option><option value="income">All Income</option><option value="room">Room Bookings</option><option value="kitchen_sales">Kitchen Sales</option><option value="expense">Expenses</option><option value="kitchen">Kitchen only</option></select><button class="mx-cal" id="mCalBtn" type="button" aria-label="Filter by date" onclick="document.getElementById('mxDates').classList.toggle('open');this.classList.toggle('on')"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg></button></div><div class="mx-dates" id="mxDates"><input id="mDate" type="date" aria-label="Filter by date"></div>
@@ -293,6 +297,7 @@ footer{display:flex;justify-content:space-between;align-items:center;padding:20p
             </div>
             --}}
         </div>
+        {{-- Income/Expense donut disabled on request. Remove this comment to bring it back.
         <div class="donut-card">
             <div class="toggle"><button type="button" id="incomeToggle" onclick="showDonut('income')">Income</button><button type="button" id="expenseToggle" class="on" onclick="showDonut('expense')">Expense</button></div>
             @php $acc=0; $stops=[]; foreach($cats as $c){ $end=$acc+$c['percent']; $stops[]=$c['color'].' '.$acc.'% '.max($acc,$end-0.8).'%'; $stops[]='#fff '.max($acc,$end-0.8).'% '.$end.'%'; $acc=$end; } $conic=count($stops)?'conic-gradient('.implode(',',$stops).')':'conic-gradient(var(--mint) 0 100%)'; @endphp
@@ -304,6 +309,7 @@ footer{display:flex;justify-content:space-between;align-items:center;padding:20p
                 @if(!count($cats))<div class="dl-row"><span style="color:#aaa">No expenses yet</span></div>@endif
             </div>
         </div>
+        --}}
     </div>
     <section class="panel">
         <div class="pt">
@@ -437,7 +443,7 @@ function mxViewAll(){['mSearch','fSearch','mCat','fCat','mStatus','fStatus','mDa
 /* Phone earnings chart: income bars up, expense bars down, from the same monthly data as the desktop chart. */
 (function(){const plot=document.getElementById('mxPlot'),y=document.getElementById('mxY'),x=document.getElementById('mxX');if(!plot||!earn.length)return;if(!hasEarnings){const chart=plot.closest('.mx-chart');if(chart){chart.innerHTML='<div class="mx-empty">No earnings recorded for {{ $chartYear }} yet</div>';chart.style.display='block';}if(x)x.innerHTML='';return;}const H2=100,n=earn.length,w=100/n;const k=v=>{const t=Math.abs(v)/1000;return (v<0?'-':'')+(t>=10?Math.round(t):Math.round(t*10)/10)+'K';};y.innerHTML=[MAX,MAX/2,0,-MAX/2,-MAX].map(v=>'<span>'+(v?k(v):'0')+'</span>').join('');plot.insertAdjacentHTML('beforeend',earn.map((m,i)=>'<div class="mo" style="left:'+(i*w)+'%;width:'+w+'%"><div class="up" style="height:'+Math.round(Math.min(1,m.income/MAX)*H2)+'px"></div><div class="dn" style="height:'+Math.round(Math.min(1,m.expense/MAX)*H2)+'px"></div></div>').join(''));x.style.gridTemplateColumns='repeat('+n+',1fr)';x.innerHTML=earn.map(m=>'<span>'+m.month+'</span>').join('');})();
 function mxDonut(type){const cats=type==='income'?incomeDonut:expenseDonut;const total=cats.reduce((s,c)=>s+Number(c.amount||0),0);let start=0;const stops=[];cats.forEach(c=>{const end=start+Number(c.percent||0);stops.push(c.color+' '+start+'% '+Math.max(start,end-.8)+'%','#fff '+Math.max(start,end-.8)+'% '+end+'%');start=end;});const d=document.getElementById('mxDonut');if(!d)return;d.style.background=stops.length?'conic-gradient('+stops.join(',')+')':'conic-gradient(#d9f5e5 0 100%)';document.getElementById('mxTotal').textContent=msMoney(total);document.getElementById('mxLabel').textContent=type==='income'?'Total Income':'Total Expense';document.getElementById('mxLegend').innerHTML=cats.length?cats.map(c=>'<div><i style="background:'+c.color+'"></i><span>'+c.name+' <em>('+Number(c.percent).toFixed(2).replace(/\.00$/,'')+'%)</em></span><b>'+msMoney(c.amount)+'</b></div>').join(''):'<div><span style="color:#aaa">No '+type+' data yet</span></div>';document.getElementById('mxIncBtn').classList.toggle('on',type==='income');document.getElementById('mxExpBtn').classList.toggle('on',type!=='income');}
-mxDonut('expense');
+if(document.getElementById('mxDonut'))mxDonut('expense');
 ['fSearch','fCat','fStatus','fFrom','fTo'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener(id==='fSearch'?'input':'change',applyFilters);});
 applyFilters();
 </script>
