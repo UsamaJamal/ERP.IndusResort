@@ -840,6 +840,7 @@ class PageController extends Controller
             'name' => \App\Models\CashMovement::TYPES[$m->type] ?? 'Cash entry',
             'category' => $m->type === 'topup' ? 'From owner' : ($m->type === 'transfer' ? 'Income Cash to Petty Cash' : 'From '.($m->wallet === 'petty' ? 'Petty Cash' : 'Income Cash')),
             'detail' => (string) $m->note,
+            'receipt' => $m->receipt_path,
             'quantity' => 1,
             'amount' => (int) $m->amount,
             'date' => $m->date,

@@ -41,6 +41,12 @@ body{margin:0;display:flex;background:var(--bg);font-family:Lato,Arial,sans-seri
 .lg-bulk{display:none;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;padding:10px 12px;border:1px solid #d5e8dc;border-radius:11px;background:#f1f8f3;font-size:13px;color:#1e4a36}
 .lg-bulk.on{display:flex}
 .lg-bulk button{height:32px;border:1px solid #b9d3c4;border-radius:8px;background:#fff;color:#1e4a36;padding:0 12px;font:700 12.5px Inter,Lato,sans-serif;cursor:pointer}
+.cash-rc{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;color:#6b7671}
+.cash-rc input[type=file]{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;clip:rect(0,0,0,0);padding:0;border:0}
+.modal .cash-rc .cash-rc-btn{display:inline-flex;align-items:center;gap:7px;height:38px;margin:0;padding:0 14px;border:1px dashed #b9d3c4;border-radius:9px;background:#f4f8f5;color:#1e4a36;font-size:13px;font-weight:700;cursor:pointer}
+.cash-rc-btn svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+a.lg-rc{display:inline-grid;place-items:center;width:34px;height:34px;border:1px solid #cfe0f7;background:#f3f8ff;border-radius:9px;color:#1e4f8f;text-decoration:none}
+a.lg-rc svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .pf-hint{margin-top:7px;font-size:12.5px;color:#6b7671}
 .pf-hint.warn{color:#b3352f;font-weight:700}
 @media(max-width:768px){.mx-h .exp-report-btn{height:34px;padding:0 10px;font-size:12px}.mx-h>div{gap:7px!important}}
@@ -433,7 +439,7 @@ function renderMobile(list){const el=document.getElementById('mRows');if(!el)ret
   if(e.kind==='income'){const svg=e.source==='kitchen'?'<path d="M6 3v7a2 2 0 0 0 4 0V3M8 12v9M17 3c-2 0-3.5 2.2-3.5 5.5S15 13 17 13v8"/>':'<path d="M3 18V8M3 14h18v4M21 14v-3a2 2 0 0 0-2-2h-8v5"/><path d="M5 11a2.5 2.5 0 0 1 5 0"/>';
     return `<div class="mx-row" onclick="location.href='${e.link}'"><span class="ic mint"><svg viewBox="0 0 24 24">${svg}</svg></span><div class="tx"><b>${esc(e.name)}</b><small>${esc(e.category)}</small><small>${esc(e.detail||'')} &nbsp;•&nbsp; ${msDate(e.date)}</small></div><div class="amt"><b style="color:#2f6b4f">+ ${msMoney(e.amount)}</b><span class="ms-pill completed">Income</span></div><svg class="chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></div>`;}
   if(e.kind==='cash'){const w=window.LG_WALLET, sg=w?walletSign(e,w):(e.type==='topup'?1:e.type==='cash_out'?-1:0);
-    return `<div class="mx-row" style="cursor:default"><span class="ic blue"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></svg></span><div class="tx"><b>${esc(e.name)}</b><small>${esc(e.category)}</small><small>${esc(e.detail||'')} &nbsp;•&nbsp; ${msDate(e.date)}</small></div><div class="amt"><b style="color:${sg>0?'#2f6b4f':sg<0?'#b3352f':'#1e4f8f'}">${sg>0?'+ ':sg<0?'− ':''}${msMoney(e.amount)}</b><span class="ms-pill blue">Cash</span></div><span></span></div>`;}
+    return `<div class="mx-row" style="cursor:${e.receipt?'pointer':'default'}" ${e.receipt?`onclick="window.open('/${e.receipt}','_blank')"`:''}><span class="ic blue"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></svg></span><div class="tx"><b>${esc(e.name)}</b><small>${esc(e.category)}</small><small>${esc(e.detail||'')} &nbsp;•&nbsp; ${msDate(e.date)}</small></div><div class="amt"><b style="color:${sg>0?'#2f6b4f':sg<0?'#b3352f':'#1e4f8f'}">${sg>0?'+ ':sg<0?'− ':''}${msMoney(e.amount)}</b><span class="ms-pill blue">${e.receipt?'Cash · Receipt':'Cash'}</span></div><span></span></div>`;}
   const ic=mxIcons[e.category]||['gray','<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>'];
   return `<div class="mx-row" onclick="viewExpense(${e.id})"><span class="ic ${ic[0]}"><svg viewBox="0 0 24 24">${ic[1]}</svg></span><div class="tx"><b>${esc(e.name)}</b><small>${esc(e.category||'')}</small><small>${WLABEL[walletOf(e)]} &nbsp;•&nbsp; ${msDate(e.date)}</small></div><div class="amt"><b style="color:#b3352f">− ${msMoney(e.amount)}</b><span class="ms-pill red">Expense</span>${CAN_MANAGE?`<span class="ms-pill blue" style="margin-left:4px" onclick="event.stopPropagation();openExpenseEditor(${e.id})">Edit</span>`:''}</div><svg class="chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></div>`;
 }).join('')||'<div class="ms-empty">No records found</div>';}
@@ -443,7 +449,7 @@ function render(list){renderMobile(list);document.getElementById('rows').innerHT
   if(e.kind==='cash'){
     const w=window.LG_WALLET, sg=w?walletSign(e,w):(e.type==='topup'?1:e.type==='cash_out'?-1:0);
     const amt=sg>0?`<span class="lg-amt in">+ PKR ${Number(e.amount).toLocaleString()}</span>`:sg<0?`<span class="lg-amt out">− PKR ${Number(e.amount).toLocaleString()}</span>`:`<span class="lg-amt move">PKR ${Number(e.amount).toLocaleString()}</span>`;
-    return `<div class="trow"><span class="lg-name"><b>${esc(e.name)}</b><small title="${esc(e.detail)}">${esc(e.detail)}</small></span><span>${esc(e.category)}</span><span>—</span>${amt}<span>${fmt(e.date)}</span><span><em class="lg-type cash">Cash</em></span><span class="act">${IS_ADMIN?`<button class="eye" title="Delete cash entry" onclick="if(confirm('Delete this cash entry?'))post('/cash/${e.ref}','DELETE')">🗑</button>`:''}</span></div>`;}
+    return `<div class="trow"><span class="lg-name"><b>${esc(e.name)}</b><small title="${esc(e.detail)}">${esc(e.detail)}</small></span><span>${esc(e.category)}</span><span>—</span>${amt}<span>${fmt(e.date)}</span><span><em class="lg-type cash">Cash</em></span><span class="act">${e.receipt?`<a class="lg-rc" title="View receipt" href="/${e.receipt}" target="_blank" rel="noopener">${rcIco}</a>`:''}${IS_ADMIN?`<button class="eye" title="Delete cash entry" onclick="if(confirm('Delete this cash entry?'))post('/cash/${e.ref}','DELETE')">🗑</button>`:''}</span></div>`;}
   return `<div class="trow" style="cursor:pointer" onclick="viewExpense(${e.id})"><span class="lg-name"><b>${CAN_MANAGE?`<input type="checkbox" class="lg-pick" value="${e.id}" ${PICKED.has(e.id)?'checked':''} onclick="event.stopPropagation();bulkToggle(${e.id},this.checked)">`:''}${esc(e.name)}</b><small><i class="lg-wallet ${walletOf(e)}" style="font-style:normal">${WLABEL[walletOf(e)]}</i></small></span><span>${esc(e.category||'')}</span><span>${e.quantity}</span><span class="lg-amt out">− PKR ${Number(e.amount).toLocaleString()}</span><span>${fmt(e.date)}</span><span><em class="lg-type out">Expense</em></span><span class="act"><button class="eye" title="View" onclick="event.stopPropagation();viewExpense(${e.id})">${eye}</button><a class="dl" href="/expenses/${e.id}/download" onclick="event.stopPropagation()">${dl} Download</a>${editExpenseButton(e.id)}${deleteExpenseButton(e.id)}</span></div>`;
 }).join('')||'<div class="trow"><span>No results</span></div>';}
 const expensesById=Object.fromEntries(data.map(expense=>[expense.id,expense]));
@@ -471,7 +477,9 @@ function bulkClear(){PICKED.clear();applyFilters();}
 function bulkPaidFrom(w){if(!PICKED.size)return;const f=document.createElement('form');f.method='POST';f.action='/expenses/paid-from';f.style.display='none';let h='<input name="_token" value="'+document.querySelector('meta[name=csrf-token]').content+'"><input name="paid_from" value="'+w+'">';PICKED.forEach(id=>h+='<input name="ids[]" value="'+id+'">');f.innerHTML=h;document.body.appendChild(f);f.submit();}
 
 // ---- Cash entry modal ----
-function openCashEntry(){const f=document.getElementById('cashForm');f.reset();cashTypeSync();openModal('cashModal');}
+const rcIco='<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 14h8M8 18h5"/></svg>';
+function cashReceiptPicked(input){const f=input.files[0];if(f&&f.size>5*1024*1024){alert('The receipt must be 5 MB or smaller.');input.value='';}document.getElementById('cashReceiptName').textContent=input.files[0]?input.files[0].name:'No file attached';}
+function openCashEntry(){const f=document.getElementById('cashForm');f.reset();document.getElementById('cashReceiptName').textContent='No file attached';cashTypeSync();openModal('cashModal');}
 function cashTypeSync(){const t=document.getElementById('cashType').value;document.getElementById('cashWalletWrap').style.display=t==='cash_out'?'':'none';
   const hint={topup:'Money the owner sent. It goes into Petty Cash and is not counted as income.',transfer:'Moves money from Income Cash (PKR '+Number(CASH.income).toLocaleString()+') into Petty Cash.',cash_out:'Cash leaving the resort, for example handed to the owner or banked.'};
   document.getElementById('cashHint').textContent=hint[t];}
@@ -556,7 +564,7 @@ applyFilters();
 </form></div></div>
 {{-- Cash entry: owner top-up, income-to-petty transfer, or cash leaving the resort --}}
 <div class="modal-ov" id="cashModal"><div class="modal"><h3>Cash Entry</h3>
-<form method="POST" id="cashForm" action="{{ url('/cash') }}">@csrf
+<form method="POST" id="cashForm" action="{{ url('/cash') }}" enctype="multipart/form-data">@csrf
 <label>What happened</label>
 <select name="type" id="cashType" onchange="cashTypeSync()">
   <option value="topup">Owner sent money (add to Petty Cash)</option>
@@ -567,6 +575,8 @@ applyFilters();
 <div id="cashWalletWrap" style="display:none"><label>Taken from</label><select name="wallet"><option value="income">Income Cash (PKR {{ number_format($cash['income']) }})</option><option value="petty">Petty Cash (PKR {{ number_format($cash['petty']) }})</option></select></div>
 <div class="mrow"><div><label>Amount (PKR) *</label><input type="number" name="amount" min="1" required></div><div><label>Date</label><input type="date" name="date" value="{{ now()->format('Y-m-d') }}"></div></div>
 <label>Note</label><input name="note" maxlength="255" placeholder="e.g. Sent with October salaries">
+<label>Receipt <span style="color:#9ca3af;font-weight:400">(optional: transfer screenshot, slip or PDF)</span></label>
+<div class="cash-rc"><label class="cash-rc-btn" for="cashReceipt"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>Attach receipt</label><input type="file" name="receipt" id="cashReceipt" accept="image/jpeg,image/png,image/webp,application/pdf" onchange="cashReceiptPicked(this)"><span id="cashReceiptName">No file attached</span></div>
 <div class="mact"><button type="button" class="mbtn cancel" onclick="closeModal('cashModal')">Cancel</button><button class="mbtn save">Save Entry</button></div>
 </form></div></div>
 <div class="modal-ov" id="expenseReportModal"><div class="modal"><h3>Export Expense PDF</h3><form id="expenseReportForm" method="GET" action="{{ url('/expenses/export/pdf') }}" onsubmit="return submitExpenseReport(this)">

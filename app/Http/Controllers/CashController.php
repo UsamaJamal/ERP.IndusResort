@@ -18,6 +18,10 @@ class CashController extends Controller
             'amount' => 'required|integer|min:1|max:100000000',
             'date' => 'nullable|date',
             'note' => 'nullable|string|max:255',
+            'receipt' => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf|max:5120',
+        ], [
+            'receipt.mimes' => 'The receipt must be an image (JPG, PNG, WebP) or a PDF.',
+            'receipt.max' => 'The receipt must be 5 MB or smaller.',
         ]);
 
         $movement = CashMovement::create([
@@ -30,12 +34,29 @@ class CashController extends Controller
             'user_id' => auth()->id(),
         ]);
 
+        if ($r->hasFile('receipt')) {
+            $directory = public_path('uploads/cash-receipts');
+            if (! is_dir($directory)) {
+                mkdir($directory, 0755, true);
+            }
+            $file = $r->file('receipt');
+            $name = 'cash_'.$movement->id.'_'.time().'_'.uniqid().'.'.strtolower($file->getClientOriginalExtension());
+            $file->move($directory, $name);
+            $movement->update(['receipt_path' => 'uploads/cash-receipts/'.$name]);
+        }
+
         return back()->with('ok', CashMovement::TYPES[$movement->type].' of PKR '.number_format($movement->amount).' recorded.');
     }
 
     public function destroy($id)
     {
-        CashMovement::findOrFail($id)->delete();
+        $movement = CashMovement::findOrFail($id);
+        // Remove the stored receipt too, but only if it really lives in the cash uploads folder.
+        $path = (string) $movement->receipt_path;
+        if ($path !== '' && strpos($path, 'uploads/cash-receipts/') === 0 && is_file(public_path($path))) {
+            @unlink(public_path($path));
+        }
+        $movement->delete();
 
         return back()->with('ok', 'Cash entry deleted.');
     }

@@ -16,3 +16,6 @@ yarn-error.log
 
 # Customer payment proofs for restaurant orders stay on the server, never in the repo.
 /public/uploads/kitchen-payments/
+
+# Receipts for cash entries stay on the server, never in the repo.
+/public/uploads/cash-receipts/
