@@ -306,6 +306,11 @@ a.ib.proof{color:#1e4f8f;border-color:#cfe0f7;background:#f3f8ff}
     <div><label>Quantity</label><input type="number" name="quantity" value="1" min="1"></div>
     <div><label>Date</label><input type="date" name="date" value="{{ now()->toDateString() }}"></div>
 </div>
+<label>Paid from</label>
+<select name="paid_from">
+    <option value="income">Income Cash (PKR {{ number_format($cash['income']) }} available)</option>
+    <option value="petty">Petty Cash (PKR {{ number_format($cash['petty']) }} available)</option>
+</select>
 <div class="mact"><button type="button" class="mbtn cancel" onclick="closeModal('addKitchenCost')">Cancel</button><button class="mbtn save">Save Cost</button></div>
 </form></div></div>
 @endif

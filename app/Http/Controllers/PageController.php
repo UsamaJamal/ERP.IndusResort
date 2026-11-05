@@ -834,7 +834,20 @@ class PageController extends Controller
             ])
         )->values();
 
+        // Cash entries that are neither sales nor expenses, for the ledger.
+        $cashRecords = \App\Models\CashMovement::orderByDesc('date')->orderByDesc('id')->get()->map(fn ($m) => [
+            'kind' => 'cash', 'type' => $m->type, 'wallet' => $m->wallet, 'ref' => $m->id,
+            'name' => \App\Models\CashMovement::TYPES[$m->type] ?? 'Cash entry',
+            'category' => $m->type === 'topup' ? 'From owner' : ($m->type === 'transfer' ? 'Income Cash to Petty Cash' : 'From '.($m->wallet === 'petty' ? 'Petty Cash' : 'Income Cash')),
+            'detail' => (string) $m->note,
+            'quantity' => 1,
+            'amount' => (int) $m->amount,
+            'date' => $m->date,
+        ])->values();
+
         return view('expenses', [
+            'cash'          => \App\Support\Cashbook::balances(),
+            'cashRecords'   => $cashRecords,
             'roomIncome'    => $roomIncome,
             'kitchenIncome' => $kitchenIncome,
             'kitchenCosts'  => $kitchenCosts,
@@ -870,6 +883,7 @@ class PageController extends Controller
         $data = $r->validate([
             'name'=>'required','category'=>'nullable|string|max:120','custom_category'=>'nullable|string|max:255','quantity'=>'nullable|integer',
             'amount'=>'nullable|integer','date'=>'nullable','receipt'=>'nullable|image|max:5120',
+            'paid_from'=>'nullable|in:income,petty',
         ]);
 
         if (filled($data['custom_category'] ?? null)) {
@@ -889,6 +903,8 @@ class PageController extends Controller
         }
 
         unset($data['receipt']);
+        // Which wallet the money left: income cash unless the form says petty.
+        $data['paid_from'] = $data['paid_from'] ?? 'income';
         Expense::create($data + ['status' => 'completed']);
         return back()->with('ok', 'Expense added');
     }
@@ -899,6 +915,7 @@ class PageController extends Controller
         $data = $r->validate([
             'name'=>'required','category'=>'nullable|string|max:120','custom_category'=>'nullable|string|max:255','quantity'=>'nullable|integer',
             'amount'=>'nullable|integer','date'=>'nullable','receipt'=>'nullable|image|max:5120',
+            'paid_from'=>'nullable|in:income,petty',
         ]);
         if (filled($data['custom_category'] ?? null)) {
             $data['category'] = $data['custom_category'];
@@ -915,6 +932,9 @@ class PageController extends Controller
             $data['receipt_path'] = 'uploads/expenses/'.$name;
         }
         unset($data['receipt']);
+        if (! isset($data['paid_from'])) {
+            unset($data['paid_from']);
+        }
         $e->update($data);
         return back()->with('ok', 'Expense updated');
     }

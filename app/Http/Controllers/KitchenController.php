@@ -52,6 +52,7 @@ class KitchenController extends Controller
             ],
             'kitchenExpenses' => Expense::whereIn('category', self::expenseCategories())->orderByDesc('date')->orderByDesc('id')->take(6)->get(),
             'expenseOptions' => PageController::EXPENSE_CATEGORIES['Kitchen & Restaurant'],
+            'cash' => \App\Support\Cashbook::balances(),
             'suggestions' => $suggestions,
         ]);
     }

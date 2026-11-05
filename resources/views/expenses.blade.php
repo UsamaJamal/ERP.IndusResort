@@ -29,6 +29,21 @@ body{margin:0;display:flex;background:var(--bg);font-family:Lato,Arial,sans-seri
 .fin-left{display:grid;gap:20px;align-content:start}
 .stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
 .fin-row2{margin-top:16px}
+.cash-head{display:flex;align-items:center;justify-content:space-between;margin:0 2px 10px}
+.cash-head h3{margin:0;font-size:12px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:#6b7671}
+.stat-row+.cash-head{margin-top:18px}
+.cash-btn{height:36px;border:0;border-radius:10px;background:#1e4a36;color:#fff;padding:0 14px;font:700 13px Inter,Lato,sans-serif;cursor:pointer}
+.lg-wallet{display:inline-block;margin-top:3px;font-size:11px;font-weight:700;border-radius:6px;padding:2px 7px}
+.lg-wallet.income{background:#e6f4ea;color:#2f6b4f}.lg-wallet.petty{background:#fdf1d3;color:#7a5400}
+.lg-type.cash{background:#dfebfb;color:#1e4f8f}
+.lg-amt.move{color:#1e4f8f}
+.lg-pick{width:16px;height:16px;margin:0 9px 0 0;accent-color:#2f6b4f;vertical-align:-2px;cursor:pointer}
+.lg-bulk{display:none;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;padding:10px 12px;border:1px solid #d5e8dc;border-radius:11px;background:#f1f8f3;font-size:13px;color:#1e4a36}
+.lg-bulk.on{display:flex}
+.lg-bulk button{height:32px;border:1px solid #b9d3c4;border-radius:8px;background:#fff;color:#1e4a36;padding:0 12px;font:700 12.5px Inter,Lato,sans-serif;cursor:pointer}
+.pf-hint{margin-top:7px;font-size:12.5px;color:#6b7671}
+.pf-hint.warn{color:#b3352f;font-weight:700}
+@media(max-width:768px){.mx-h .exp-report-btn{height:34px;padding:0 10px;font-size:12px}.mx-h>div{gap:7px!important}}
 .sc-click{cursor:pointer;transition:box-shadow .15s,border-color .15s;border:1px solid transparent}
 .sc-click:hover{box-shadow:0 6px 18px rgba(16,24,40,.08)}
 .sc-click.on{border-color:#2f6b4f;box-shadow:0 0 0 3px rgba(47,107,79,.12)}
@@ -214,7 +229,10 @@ footer{display:flex;justify-content:space-between;align-items:center;padding:20p
 .mx-card .ms-pager{padding-top:10px}
 }</style>
 <div class="mx-stats">
-<article class="mx-stat {{ $balanceChange < 0 ? 'down' : '' }}"><div class="h"><i><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M16 12h2"/></svg></i>Total Balance</div><div class="v">PKR {{ number_format($totalBalance) }}</div><div class="d"><b>{!! $balanceChange < 0 ? '<svg viewBox="0 0 24 24"><path d="M7 7l10 10M15 17H7V9"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></svg>' !!}{{ number_format(abs($balanceChange), 2) }}%</b>from last week</div></article>
+<article class="mx-stat {{ $cash['total'] < 0 ? 'down' : '' }}"><div class="h"><i><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></svg></i>Cash in Hand</div><div class="v">PKR {{ number_format($cash['total']) }}</div><div class="d">income plus petty</div></article>
+<article class="mx-stat {{ $cash['income'] < 0 ? 'down' : '' }}"><div class="h"><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v10"/></svg></i>Income Cash</div><div class="v">PKR {{ number_format($cash['income']) }}</div><div class="d">from bookings and kitchen</div></article>
+<article class="mx-stat {{ $cash['petty'] < 0 ? 'down' : '' }}"><div class="h"><i><svg viewBox="0 0 24 24"><path d="M20 7H5a2 2 0 0 1 0-4h13v4M3 5v13a2 2 0 0 0 2 2h15v-4"/></svg></i>Petty Cash</div><div class="v">PKR {{ number_format($cash['petty']) }}</div><div class="d">sent by the owner</div></article>
+<article class="mx-stat {{ $balanceChange < 0 ? 'down' : '' }}"><div class="h"><i><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M16 12h2"/></svg></i>Net Profit</div><div class="v">PKR {{ number_format($totalBalance) }}</div><div class="d"><b>{!! $balanceChange < 0 ? '<svg viewBox="0 0 24 24"><path d="M7 7l10 10M15 17H7V9"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></svg>' !!}{{ number_format(abs($balanceChange), 2) }}%</b>from last week</div></article>
 <article class="mx-stat {{ $incomeChange < 0 ? 'down' : '' }}"><div class="h"><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 14c0 1 1 2 2.5 2s2.5-.7 2.5-2-1-1.7-2.5-2-2.5-1-2.5-2 1-2 2.5-2 2.5 1 2.5 2"/></svg></i>Total Income</div><div class="v">PKR {{ number_format($totalIncome) }}</div><div class="d"><b>{!! $incomeChange < 0 ? '<svg viewBox="0 0 24 24"><path d="M7 7l10 10M15 17H7V9"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></svg>' !!}{{ number_format(abs($incomeChange), 2) }}%</b>from last week</div></article>
 <article class="mx-stat {{ $expenseChange < 0 ? 'down' : '' }}"><div class="h"><i><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg></i>Total Expenses</div><div class="v">PKR {{ number_format($totalExpense) }}</div><div class="d"><b>{!! $expenseChange < 0 ? '<svg viewBox="0 0 24 24"><path d="M7 7l10 10M15 17H7V9"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></svg>' !!}{{ number_format(abs($expenseChange), 2) }}%</b>from last week</div></article>
 <article class="mx-stat"><div class="h"><i><svg viewBox="0 0 24 24"><path d="M3 18V8M3 14h18v4M21 14v-3a2 2 0 0 0-2-2h-8v5"/><path d="M5 11a2.5 2.5 0 0 1 5 0"/></svg></i>Room Income</div><div class="v">PKR {{ number_format($roomIncome) }}</div><div class="d">paid bookings</div></article>
@@ -228,8 +246,8 @@ footer{display:flex;justify-content:space-between;align-items:center;padding:20p
 <section class="mx-card"><div class="mx-tog"><button type="button" id="mxIncBtn" onclick="mxDonut('income')">Income</button><button type="button" class="on" id="mxExpBtn" onclick="mxDonut('expense')">Expense</button></div><div class="mx-donut" id="mxDonut"><div class="c"><b id="mxTotal"></b><small id="mxLabel"></small></div></div><div class="mx-dl" id="mxLegend"></div></section>
 --}}
 <section class="mx-card">
-<div class="mx-h"><h2>Transactions</h2><div style="display:flex;align-items:center;gap:12px"><button class="exp-report-btn" type="button" onclick="openExpenseReport()">Export PDF</button><a class="mx-link" href="javascript:void(0)" onclick="mxViewAll()">View All <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></a></div></div>
-<div class="mx-flt"><label class="ms-search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="mSearch" type="search" placeholder="Search records..."></label><select class="ms-sel" id="mCat"><option value="">All Category</option>@foreach($categoryGroups as $group => $items)<optgroup label="{{ $group }}">@foreach($items as $item)<option>{{ $item }}</option>@endforeach</optgroup>@endforeach</select><select class="ms-sel" id="mStatus"><option value="">All Records</option><option value="income">All Income</option><option value="room">Room Bookings</option><option value="kitchen_sales">Kitchen Sales</option><option value="expense">Expenses</option><option value="kitchen">Kitchen only</option></select><button class="mx-cal" id="mCalBtn" type="button" aria-label="Filter by date" onclick="document.getElementById('mxDates').classList.toggle('open');this.classList.toggle('on')"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg></button></div><div class="mx-dates" id="mxDates"><input id="mDate" type="date" aria-label="Filter by date"></div>
+<div class="mx-h"><h2>Transactions</h2><div style="display:flex;align-items:center;gap:12px">@if(auth()->user()->role !== 'staff')<button class="exp-report-btn" type="button" onclick="openCashEntry()">Cash Entry</button>@endif<button class="exp-report-btn" type="button" onclick="openExpenseReport()">Export PDF</button><a class="mx-link" href="javascript:void(0)" onclick="mxViewAll()">View All <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></a></div></div>
+<div class="mx-flt"><label class="ms-search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="mSearch" type="search" placeholder="Search records..."></label><select class="ms-sel" id="mCat"><option value="">All Category</option>@foreach($categoryGroups as $group => $items)<optgroup label="{{ $group }}">@foreach($items as $item)<option>{{ $item }}</option>@endforeach</optgroup>@endforeach</select><select class="ms-sel" id="mStatus"><option value="">All Records</option><option value="cash_income">Income Cash</option><option value="cash_petty">Petty Cash</option><option value="pl">Income &amp; Expenses</option><option value="income">All Income</option><option value="room">Room Bookings</option><option value="kitchen_sales">Kitchen Sales</option><option value="expense">Expenses</option><option value="kitchen">Kitchen only</option></select><button class="mx-cal" id="mCalBtn" type="button" aria-label="Filter by date" onclick="document.getElementById('mxDates').classList.toggle('open');this.classList.toggle('on')"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg></button></div><div class="mx-dates" id="mxDates"><input id="mDate" type="date" aria-label="Filter by date"></div>
 <div id="mRows"></div><div class="ms-pager" id="mPager"></div>
 </section>
 @include('partials.mobile-nav')
@@ -248,9 +266,26 @@ footer{display:flex;justify-content:space-between;align-items:center;padding:20p
 @include('partials.page-head', ['pgTitle'=>'Financials','pgSub'=>'Income, expenses and transactions.'])
     <div class="fin-top">
         <div class="fin-left">
-            <div class="stat-row">
+            {{-- Where the cash physically is. Separate from profit below: owner top-ups raise cash, not income. --}}
+            <div class="cash-head"><h3>Cash</h3>@if(auth()->user()->role !== 'staff')<button type="button" class="cash-btn" onclick="openCashEntry()">+ Cash Entry</button>@endif</div>
+            <div class="stat-row cash-row">
                 <div class="scard sc-click" data-filter="" title="Show these records below">
-                    <div class="sc-head"><span class="sc-ic"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M16 12h2"/></svg></span>Total Balance<span class="dots">···</span></div>
+                    <div class="sc-head"><span class="sc-ic"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></svg></span>Cash in Hand</div>
+                    <div class="sc-body"><div class="sc-num {{ $cash['total'] < 0 ? 'neg' : '' }}">PKR {{ number_format($cash['total']) }}</div><div class="sc-sub">income cash plus petty cash</div></div>
+                </div>
+                <div class="scard sc-click" data-filter="cash_income" title="Show these records below">
+                    <div class="sc-head"><span class="sc-ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 14c0 1 1 2 2.5 2s2.5-.7 2.5-2-1-1.7-2.5-2-2.5-1-2.5-2 1-2 2.5-2 2.5 1 2.5 2"/></svg></span>Income Cash</div>
+                    <div class="sc-body"><div class="sc-num {{ $cash['income'] < 0 ? 'neg' : '' }}">PKR {{ number_format($cash['income']) }}</div><div class="sc-sub">PKR {{ number_format($cash['received']) }} received, PKR {{ number_format($cash['expenses_income'] + $cash['transfers'] + $cash['out_income']) }} out</div></div>
+                </div>
+                <div class="scard sc-click" data-filter="cash_petty" title="Show these records below">
+                    <div class="sc-head"><span class="sc-ic amber"><svg viewBox="0 0 24 24"><path d="M20 7H5a2 2 0 0 1 0-4h13v4M3 5v13a2 2 0 0 0 2 2h15v-4"/><path d="M20 12h-4a2 2 0 0 0 0 4h4z"/></svg></span>Petty Cash</div>
+                    <div class="sc-body"><div class="sc-num {{ $cash['petty'] < 0 ? 'neg' : '' }}">PKR {{ number_format($cash['petty']) }}</div><div class="sc-sub">PKR {{ number_format($cash['topups'] + $cash['transfers']) }} added, PKR {{ number_format($cash['expenses_petty'] + $cash['out_petty']) }} spent</div></div>
+                </div>
+            </div>
+            <div class="cash-head"><h3>Profit</h3></div>
+            <div class="stat-row">
+                <div class="scard sc-click" data-filter="pl" title="Show these records below">
+                    <div class="sc-head"><span class="sc-ic"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M16 12h2"/></svg></span>Net Profit<span class="dots">···</span></div>
                     <div class="sc-body"><div class="sc-num">PKR {{ number_format($totalBalance) }}</div><div class="sc-delta"><span class="p {{ $balanceChange < 0 ? 'down' : '' }}">{{ $balanceChange < 0 ? '↘' : '↗' }} {{ number_format(abs($balanceChange), 2) }}%</span><small>from last week</small></div></div>
                 </div>
                 <div class="scard sc-click" data-filter="income" title="Show these records below">
@@ -315,13 +350,14 @@ footer{display:flex;justify-content:space-between;align-items:center;padding:20p
             <div class="pt-r">
                 <div class="searchbox"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><input class="search" id="fSearch" placeholder="Search records"></div>
                 <select class="fsel" id="fCat"><option value="">All Category</option>@foreach($categoryGroups as $group => $items)<optgroup label="{{ $group }}">@foreach($items as $item)<option>{{ $item }}</option>@endforeach</optgroup>@endforeach</select>
-                <select class="fsel" id="fStatus"><option value="">All Records</option><option value="income">All Income</option><option value="room">Room Bookings</option><option value="kitchen_sales">Kitchen Sales</option><option value="expense">Expenses</option><option value="kitchen">Kitchen only</option></select>
+                <select class="fsel" id="fStatus"><option value="">All Records</option><option value="cash_income">Income Cash</option><option value="cash_petty">Petty Cash</option><option value="pl">Income &amp; Expenses</option><option value="income">All Income</option><option value="room">Room Bookings</option><option value="kitchen_sales">Kitchen Sales</option><option value="expense">Expenses</option><option value="kitchen">Kitchen only</option></select>
                 <div class="pill" style="padding:0 12px"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg><input id="fFrom" type="date" style="border:0;background:transparent;font:inherit;color:#333;width:130px" aria-label="From"><span style="color:#9a9a9a">to</span><input id="fTo" type="date" style="border:0;background:transparent;font:inherit;color:#333;width:130px" aria-label="To"></div>
                 <button class="exp-report-btn" type="button" onclick="openExpenseReport()">Export PDF</button>
                 <button class="pill" style="background:var(--lime);color:#2f3a0c;font-weight:700" onclick="openExpenseCreator()">+ Add Expense</button>
             </div>
         </div>
         <div class="lg-sum" id="lgSum"></div>
+        <div class="lg-bulk" id="lgBulk"><span id="lgBulkCount"></span><button type="button" onclick="bulkPaidFrom('petty')">Paid from Petty Cash</button><button type="button" onclick="bulkPaidFrom('income')">Paid from Income Cash</button><button type="button" onclick="bulkClear()">Clear</button></div>
         <div class="tbl">
             <div class="thead">
                 <span onclick="sortCol('exp','name',applyFilters)" style="cursor:pointer">Record @include('partials.sort')</span>
@@ -375,7 +411,18 @@ const dl='<svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 21h16"/>
 const data=@json($expenses);
 // One ledger: expenses, plus paid restaurant orders and paid bookings as income.
 const KITCHEN_CATS=@json($kitchenCats);
-const ledger=[...data.map(e=>({...e,kind:'expense'})),...@json($incomeRecords)];
+const ledger=[...data.map(e=>({...e,kind:'expense'})),...@json($incomeRecords),...@json($cashRecords)];
+const CASH=@json($cash);
+const WLABEL={income:'Income Cash',petty:'Petty Cash'};
+const walletOf=e=>e.paid_from==='petty'?'petty':'income';
+// Does a record move money in or out of a wallet? Returns +1, -1 or 0.
+function walletSign(r,w){
+  if(r.kind==='income')return w==='income'?1:0;
+  if(r.kind==='expense')return walletOf(r)===w?-1:0;
+  if(r.type==='topup')return w==='petty'?1:0;
+  if(r.type==='transfer')return w==='petty'?1:-1;
+  return r.wallet===w?-1:0; // cash_out
+}
 const isKitchen=r=>r.kind==='income'?r.source==='kitchen':KITCHEN_CATS.includes(r.category);
 const esc=x=>String(x==null?'':x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=d=>{if(!d)return'';const p=String(d).slice(0,10).split('-');const M=['January','February','March','April','May','June','July','August','September','October','November','December'];return M[+p[1]-1]+' '+(+p[2])+', '+p[0]};
@@ -385,16 +432,22 @@ const mxIcons={'Supplies':['mint','<path d="M6 8h12l-1 12H7z"/><path d="M9 8V6a3
 function renderMobile(list){const el=document.getElementById('mRows');if(!el)return;el.innerHTML=list.map(e=>{
   if(e.kind==='income'){const svg=e.source==='kitchen'?'<path d="M6 3v7a2 2 0 0 0 4 0V3M8 12v9M17 3c-2 0-3.5 2.2-3.5 5.5S15 13 17 13v8"/>':'<path d="M3 18V8M3 14h18v4M21 14v-3a2 2 0 0 0-2-2h-8v5"/><path d="M5 11a2.5 2.5 0 0 1 5 0"/>';
     return `<div class="mx-row" onclick="location.href='${e.link}'"><span class="ic mint"><svg viewBox="0 0 24 24">${svg}</svg></span><div class="tx"><b>${esc(e.name)}</b><small>${esc(e.category)}</small><small>${esc(e.detail||'')} &nbsp;•&nbsp; ${msDate(e.date)}</small></div><div class="amt"><b style="color:#2f6b4f">+ ${msMoney(e.amount)}</b><span class="ms-pill completed">Income</span></div><svg class="chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></div>`;}
+  if(e.kind==='cash'){const w=window.LG_WALLET, sg=w?walletSign(e,w):(e.type==='topup'?1:e.type==='cash_out'?-1:0);
+    return `<div class="mx-row" style="cursor:default"><span class="ic blue"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></svg></span><div class="tx"><b>${esc(e.name)}</b><small>${esc(e.category)}</small><small>${esc(e.detail||'')} &nbsp;•&nbsp; ${msDate(e.date)}</small></div><div class="amt"><b style="color:${sg>0?'#2f6b4f':sg<0?'#b3352f':'#1e4f8f'}">${sg>0?'+ ':sg<0?'− ':''}${msMoney(e.amount)}</b><span class="ms-pill blue">Cash</span></div><span></span></div>`;}
   const ic=mxIcons[e.category]||['gray','<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>'];
-  return `<div class="mx-row" onclick="viewExpense(${e.id})"><span class="ic ${ic[0]}"><svg viewBox="0 0 24 24">${ic[1]}</svg></span><div class="tx"><b>${esc(e.name)}</b><small>${esc(e.category||'')}</small><small>Qty: ${e.quantity} &nbsp;•&nbsp; ${msDate(e.date)}</small></div><div class="amt"><b style="color:#b3352f">− ${msMoney(e.amount)}</b><span class="ms-pill red">Expense</span>${CAN_MANAGE?`<span class="ms-pill blue" style="margin-left:4px" onclick="event.stopPropagation();openExpenseEditor(${e.id})">Edit</span>`:''}</div><svg class="chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></div>`;
+  return `<div class="mx-row" onclick="viewExpense(${e.id})"><span class="ic ${ic[0]}"><svg viewBox="0 0 24 24">${ic[1]}</svg></span><div class="tx"><b>${esc(e.name)}</b><small>${esc(e.category||'')}</small><small>${WLABEL[walletOf(e)]} &nbsp;•&nbsp; ${msDate(e.date)}</small></div><div class="amt"><b style="color:#b3352f">− ${msMoney(e.amount)}</b><span class="ms-pill red">Expense</span>${CAN_MANAGE?`<span class="ms-pill blue" style="margin-left:4px" onclick="event.stopPropagation();openExpenseEditor(${e.id})">Edit</span>`:''}</div><svg class="chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></div>`;
 }).join('')||'<div class="ms-empty">No records found</div>';}
 function render(list){renderMobile(list);document.getElementById('rows').innerHTML=list.map(e=>{
   if(e.kind==='income'){
     return `<div class="trow"><span class="lg-name"><b>${esc(e.name)}</b><small title="${esc(e.detail||'')}">${esc(e.detail||'')}</small></span><span>${esc(e.category)}</span><span>${e.quantity} ${e.source==='room'?(e.quantity===1?'night':'nights'):(e.quantity===1?'item':'items')}</span><span class="lg-amt in">+ PKR ${Number(e.amount).toLocaleString()}</span><span>${fmt(e.date)}</span><span><em class="lg-type in">Income</em></span><span class="act"><a class="lg-open" href="${e.link}">${e.source==='kitchen'?'Open Kitchen':'View Booking'}</a></span></div>`;}
-  return `<div class="trow" style="cursor:pointer" onclick="viewExpense(${e.id})"><span class="lg-name"><b>${esc(e.name)}</b></span><span>${esc(e.category||'')}</span><span>${e.quantity}</span><span class="lg-amt out">− PKR ${Number(e.amount).toLocaleString()}</span><span>${fmt(e.date)}</span><span><em class="lg-type out">Expense</em></span><span class="act"><button class="eye" title="View" onclick="event.stopPropagation();viewExpense(${e.id})">${eye}</button><a class="dl" href="/expenses/${e.id}/download" onclick="event.stopPropagation()">${dl} Download</a>${editExpenseButton(e.id)}${deleteExpenseButton(e.id)}</span></div>`;
+  if(e.kind==='cash'){
+    const w=window.LG_WALLET, sg=w?walletSign(e,w):(e.type==='topup'?1:e.type==='cash_out'?-1:0);
+    const amt=sg>0?`<span class="lg-amt in">+ PKR ${Number(e.amount).toLocaleString()}</span>`:sg<0?`<span class="lg-amt out">− PKR ${Number(e.amount).toLocaleString()}</span>`:`<span class="lg-amt move">PKR ${Number(e.amount).toLocaleString()}</span>`;
+    return `<div class="trow"><span class="lg-name"><b>${esc(e.name)}</b><small title="${esc(e.detail)}">${esc(e.detail)}</small></span><span>${esc(e.category)}</span><span>—</span>${amt}<span>${fmt(e.date)}</span><span><em class="lg-type cash">Cash</em></span><span class="act">${IS_ADMIN?`<button class="eye" title="Delete cash entry" onclick="if(confirm('Delete this cash entry?'))post('/cash/${e.ref}','DELETE')">🗑</button>`:''}</span></div>`;}
+  return `<div class="trow" style="cursor:pointer" onclick="viewExpense(${e.id})"><span class="lg-name"><b>${CAN_MANAGE?`<input type="checkbox" class="lg-pick" value="${e.id}" ${PICKED.has(e.id)?'checked':''} onclick="event.stopPropagation();bulkToggle(${e.id},this.checked)">`:''}${esc(e.name)}</b><small><i class="lg-wallet ${walletOf(e)}" style="font-style:normal">${WLABEL[walletOf(e)]}</i></small></span><span>${esc(e.category||'')}</span><span>${e.quantity}</span><span class="lg-amt out">− PKR ${Number(e.amount).toLocaleString()}</span><span>${fmt(e.date)}</span><span><em class="lg-type out">Expense</em></span><span class="act"><button class="eye" title="View" onclick="event.stopPropagation();viewExpense(${e.id})">${eye}</button><a class="dl" href="/expenses/${e.id}/download" onclick="event.stopPropagation()">${dl} Download</a>${editExpenseButton(e.id)}${deleteExpenseButton(e.id)}</span></div>`;
 }).join('')||'<div class="trow"><span>No results</span></div>';}
 const expensesById=Object.fromEntries(data.map(expense=>[expense.id,expense]));
-function viewExpense(id){const e=expensesById[id];if(!e)return;const receipt=e.receipt_path?'<div style="margin-top:14px"><b>Receipt Image</b><br><img src="/'+e.receipt_path+'" alt="Expense receipt" style="display:block;max-width:100%;max-height:320px;margin-top:8px;border:1px solid #e5e5e5;border-radius:8px"></div>':'<div style="margin-top:14px;color:#888">No receipt image uploaded.</div>';showDetail(e.name,'Category: '+(e.category||'-')+'<br>Quantity: '+e.quantity+'<br>Amount: PKR '+e.amount+'<br>Date: '+fmt(e.date)+'<br>Status: Completed'+receipt);}
+function viewExpense(id){const e=expensesById[id];if(!e)return;const receipt=e.receipt_path?'<div style="margin-top:14px"><b>Receipt Image</b><br><img src="/'+e.receipt_path+'" alt="Expense receipt" style="display:block;max-width:100%;max-height:320px;margin-top:8px;border:1px solid #e5e5e5;border-radius:8px"></div>':'<div style="margin-top:14px;color:#888">No receipt image uploaded.</div>';showDetail(e.name,'Category: '+(e.category||'-')+'<br>Quantity: '+e.quantity+'<br>Amount: PKR '+e.amount+'<br>Date: '+fmt(e.date)+'<br>Paid from: '+WLABEL[walletOf(e)]+'<br>Status: Completed'+receipt);}
 function downloadExpensePdf(id){const e=expensesById[id];if(!e)return;const content=['INDUS RESORT RESTAURANT EXPENSE','================================','Expense: '+e.name,'Category: '+(e.category||''),'Quantity: '+e.quantity,'Amount: PKR '+e.amount,'Date: '+fmt(e.date)].join(String.fromCharCode(10));downloadFile('expense-'+e.id+'.pdf',content);}
 
 /* Category picker: filter the grouped list as you type; Enter or the "Add" row keeps a custom category. */
@@ -404,27 +457,58 @@ function catFilter(q){q=(q||'').trim().toLowerCase();let any=false,exact=false;d
 function catPickItem(v){const i=document.getElementById('catInput');i.value=v;catClose();}
 function catKey(e){if(e.key==='Enter'){e.preventDefault();const first=document.querySelector('#catList .catitem:not(.hide)');const q=e.target.value.trim();if(first&&first.dataset.v.toLowerCase()===q.toLowerCase())catPickItem(first.dataset.v);else catClose();}else if(e.key==='Escape')catClose();}
 document.addEventListener('mousedown',e=>{if(!e.target.closest('#catPick'))catClose();});
-function openExpenseCreator(){const f=document.getElementById('expForm');f.reset();f.action='{{ url('/expenses') }}';document.getElementById('expMethod').value='';document.getElementById('expModalTitle').textContent='Add Expense';openModal('addExp');}
-function openExpenseEditor(id){const e=(window.expensesById&&expensesById[id])||data.find(x=>x.id===id);if(!e)return;const f=document.getElementById('expForm');f.reset();f.action='{{ url('/expenses') }}/'+e.id;document.getElementById('expMethod').value='PUT';document.getElementById('expModalTitle').textContent='Edit Expense';['name','quantity','amount'].forEach(k=>{if(f.elements[k])f.elements[k].value=e[k]??'';});if(f.elements.date)f.elements.date.value=String(e.date||'').slice(0,10);if(f.elements.category)f.elements.category.value=e.category||'';openModal('addExp');}
+function openExpenseCreator(){const f=document.getElementById('expForm');f.reset();f.action='{{ url('/expenses') }}';document.getElementById('expMethod').value='';document.getElementById('expModalTitle').textContent='Add Expense';PF_ORIG=null;pfSync();openModal('addExp');}
+function openExpenseEditor(id){const e=(window.expensesById&&expensesById[id])||data.find(x=>x.id===id);if(!e)return;const f=document.getElementById('expForm');f.reset();f.action='{{ url('/expenses') }}/'+e.id;document.getElementById('expMethod').value='PUT';document.getElementById('expModalTitle').textContent='Edit Expense';['name','quantity','amount'].forEach(k=>{if(f.elements[k])f.elements[k].value=e[k]??'';});if(f.elements.date)f.elements.date.value=String(e.date||'').slice(0,10);if(f.elements.category)f.elements.category.value=e.category||'';if(f.elements.paid_from)f.elements.paid_from.value=walletOf(e);PF_ORIG=e;pfSync();openModal('addExp');}
 function editExpenseButton(id){return CAN_MANAGE?'<button class="eye" title="Edit" onclick="event.stopPropagation();openExpenseEditor('+id+')"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>':'';}
 function deleteExpenseButton(id){return IS_ADMIN?'<button class="eye" title="Delete" onclick="event.stopPropagation();if(confirm(\'Delete this expense?\'))post(\'/expenses/'+id+'\',\'DELETE\')">🗑</button>':'';}
 function openExpenseReport(){document.getElementById('expenseReportForm').reset();document.getElementById('reportFrom').value='{{ now()->startOfMonth()->format('Y-m-d') }}';document.getElementById('reportTo').value='{{ now()->format('Y-m-d') }}';openModal('expenseReportModal');}
 function submitExpenseReport(form){const button=form.querySelector('button[type="submit"]');if(button){button.disabled=true;button.textContent='Preparing PDF…';button.style.opacity='.7';}closeModal('expenseReportModal');return true;}
+// ---- Bulk re-filing: tick expenses, then say which wallet paid for them. ----
+const PICKED=new Set();
+function bulkToggle(id,on){on?PICKED.add(id):PICKED.delete(id);bulkSync();}
+function bulkSync(){const bar=document.getElementById('lgBulk');if(!bar)return;bar.classList.toggle('on',PICKED.size>0);document.getElementById('lgBulkCount').textContent=PICKED.size+(PICKED.size===1?' expense selected. Mark as:':' expenses selected. Mark as:');}
+function bulkClear(){PICKED.clear();applyFilters();}
+function bulkPaidFrom(w){if(!PICKED.size)return;const f=document.createElement('form');f.method='POST';f.action='/expenses/paid-from';f.style.display='none';let h='<input name="_token" value="'+document.querySelector('meta[name=csrf-token]').content+'"><input name="paid_from" value="'+w+'">';PICKED.forEach(id=>h+='<input name="ids[]" value="'+id+'">');f.innerHTML=h;document.body.appendChild(f);f.submit();}
+
+// ---- Cash entry modal ----
+function openCashEntry(){const f=document.getElementById('cashForm');f.reset();cashTypeSync();openModal('cashModal');}
+function cashTypeSync(){const t=document.getElementById('cashType').value;document.getElementById('cashWalletWrap').style.display=t==='cash_out'?'':'none';
+  const hint={topup:'Money the owner sent. It goes into Petty Cash and is not counted as income.',transfer:'Moves money from Income Cash (PKR '+Number(CASH.income).toLocaleString()+') into Petty Cash.',cash_out:'Cash leaving the resort, for example handed to the owner or banked.'};
+  document.getElementById('cashHint').textContent=hint[t];}
+
+// ---- "Paid from" on the expense form: show what the wallet holds and what would be left. ----
+let PF_ORIG=null; // the expense being edited, so its own amount is not counted twice
+function pfSync(){const sel=document.getElementById('expPaidFrom'),hint=document.getElementById('pfHint');if(!sel||!hint)return;
+  const w=sel.value, amt=parseInt(document.querySelector('#expForm [name=amount]').value)||0;
+  let bal=Number(CASH[w]); if(PF_ORIG&&walletOf(PF_ORIG)===w)bal+=Number(PF_ORIG.amount||0);
+  const left=bal-amt;
+  hint.className='pf-hint'+(left<0?' warn':'');
+  hint.textContent=WLABEL[w]+' has PKR '+bal.toLocaleString()+'. After this expense: PKR '+left.toLocaleString()+(left<0?'. This is more than the wallet holds.':'.');
+  return left;}
+
 function applyFilters(){
   const q=(document.getElementById('fSearch').value||'').toLowerCase();const cat=document.getElementById('fCat').value;const kind=document.getElementById('fStatus').value;
   const from=(document.getElementById('fFrom')||{}).value, to=(document.getElementById('fTo')||{}).value;
   const day=r=>String(r.date||'').slice(0,10);
   const list=ledger.filter(r=>(!mxDate()||day(r)===mxDate())&&(!from||day(r)>=from)&&(!to||day(r)<=to)
     &&(!cat||r.category===cat)
-    &&(!kind||(kind==='kitchen'?isKitchen(r):kind==='room'?(r.kind==='income'&&r.source==='room'):kind==='kitchen_sales'?(r.kind==='income'&&r.source==='kitchen'):r.kind===kind))
+    &&(!kind||(kind==='cash_income'?walletSign(r,'income')!==0:kind==='cash_petty'?walletSign(r,'petty')!==0:kind==='pl'?(r.kind==='income'||r.kind==='expense'):kind==='kitchen'?(r.kind!=='cash'&&isKitchen(r)):kind==='room'?(r.kind==='income'&&r.source==='room'):kind==='kitchen_sales'?(r.kind==='income'&&r.source==='kitchen'):r.kind===kind))
     &&(!q||[r.name,r.category,r.detail].join(' ').toLowerCase().includes(q)));
   // Newest first unless a column sort is active.
   list.sort((a,b)=>day(b).localeCompare(day(a)));
   const inc=list.filter(r=>r.kind==='income').reduce((t,r)=>t+Number(r.amount||0),0), exp=list.filter(r=>r.kind==='expense').reduce((t,r)=>t+Number(r.amount||0),0);
   const sum=document.getElementById('lgSum');
-  if(sum)sum.innerHTML=`<span>Records <b>${list.length}</b></span><span>Income <b style="color:#2f6b4f">PKR ${inc.toLocaleString()}</b></span><span>Expenses <b style="color:#b3352f">PKR ${exp.toLocaleString()}</b></span><span>Net <b style="color:${inc-exp<0?'#b3352f':'#123527'}">PKR ${(inc-exp).toLocaleString()}</b></span>`;
+  const wal=kind==='cash_income'?'income':kind==='cash_petty'?'petty':null;
+  if(sum&&wal){
+    // A wallet view totals what came in and went out of that wallet for the rows shown.
+    const cin=list.reduce((t,r)=>t+(walletSign(r,wal)>0?Number(r.amount||0):0),0), cout=list.reduce((t,r)=>t+(walletSign(r,wal)<0?Number(r.amount||0):0),0);
+    sum.innerHTML=`<span>Records <b>${list.length}</b></span><span>In <b style="color:#2f6b4f">PKR ${cin.toLocaleString()}</b></span><span>Out <b style="color:#b3352f">PKR ${cout.toLocaleString()}</b></span><span>${WLABEL[wal]} now <b style="color:${CASH[wal]<0?'#b3352f':'#123527'}">PKR ${Number(CASH[wal]).toLocaleString()}</b></span>`;
+  } else if(sum)sum.innerHTML=`<span>Records <b>${list.length}</b></span><span>Income <b style="color:#2f6b4f">PKR ${inc.toLocaleString()}</b></span><span>Expenses <b style="color:#b3352f">PKR ${exp.toLocaleString()}</b></span><span>Net <b style="color:${inc-exp<0?'#b3352f':'#123527'}">PKR ${(inc-exp).toLocaleString()}</b></span>`;
+  window.LG_WALLET=wal; bulkSync();
   pgReset('exp');paginateRender('exp',sortList('exp',list),8,render);}
 msMirror([['mSearch','fSearch','input'],['mCat','fCat'],['mStatus','fStatus']]);
+// The form's markup comes after this script, so listen on the document instead of the form.
+document.addEventListener('submit',e=>{if(e.target.id!=='expForm')return;const left=pfSync();const w=document.getElementById('expPaidFrom').value;if(left<0&&!confirm(WLABEL[w]+' does not hold this much. It will go PKR '+Math.abs(left).toLocaleString()+' below zero. Save anyway?'))e.preventDefault();});
 // A card is a shortcut to the records it summarises.
 document.querySelectorAll('.sc-click').forEach(card=>card.addEventListener('click',e=>{
   if(e.target.closest('a'))return;
@@ -459,10 +543,31 @@ applyFilters();
     <div class="catnew" id="catNew" onmousedown="catPickItem(document.getElementById('catInput').value.trim())">Add "<b id="catNewText"></b>" as a new category</div>
   </div>
 </div>
-<div class="mrow"><div><label>Quantity</label><input type="number" name="quantity" value="1"></div><div><label>Amount (PKR)</label><input type="number" name="amount" value="0"></div></div>
+<div class="mrow"><div><label>Quantity</label><input type="number" name="quantity" value="1"></div><div><label>Amount (PKR)</label><input type="number" name="amount" value="0" oninput="pfSync()"></div></div>
 <label>Date</label><input type="date" name="date" value="{{ now()->format('Y-m-d') }}">
+<label>Paid from</label>
+<select name="paid_from" id="expPaidFrom" onchange="pfSync()">
+  <option value="income">Income Cash (PKR {{ number_format($cash['income']) }} available)</option>
+  <option value="petty">Petty Cash (PKR {{ number_format($cash['petty']) }} available)</option>
+</select>
+<div class="pf-hint" id="pfHint"></div>
 <label>Receipt / Picture</label><div style="display:flex;align-items:center;gap:10px"><label for="receipt" style="margin:0;background:var(--lime);color:#2f3a0c;border-radius:8px;padding:10px 14px;font-weight:700;cursor:pointer">Upload Receipt Image</label><span id="receiptName" style="color:#777;font-size:13px">No image selected</span></div><input id="receipt" type="file" name="receipt" accept="image/*" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)" onchange="document.getElementById('receiptName').textContent=this.files[0]?.name||'No image selected'">
 <div class="mact"><button type="button" class="mbtn cancel" onclick="closeModal('addExp')">Cancel</button><button class="mbtn save">Save</button></div>
+</form></div></div>
+{{-- Cash entry: owner top-up, income-to-petty transfer, or cash leaving the resort --}}
+<div class="modal-ov" id="cashModal"><div class="modal"><h3>Cash Entry</h3>
+<form method="POST" id="cashForm" action="{{ url('/cash') }}">@csrf
+<label>What happened</label>
+<select name="type" id="cashType" onchange="cashTypeSync()">
+  <option value="topup">Owner sent money (add to Petty Cash)</option>
+  <option value="transfer">Move Income Cash into Petty Cash</option>
+  <option value="cash_out">Cash out (handed over or banked)</option>
+</select>
+<div class="pf-hint" id="cashHint"></div>
+<div id="cashWalletWrap" style="display:none"><label>Taken from</label><select name="wallet"><option value="income">Income Cash (PKR {{ number_format($cash['income']) }})</option><option value="petty">Petty Cash (PKR {{ number_format($cash['petty']) }})</option></select></div>
+<div class="mrow"><div><label>Amount (PKR) *</label><input type="number" name="amount" min="1" required></div><div><label>Date</label><input type="date" name="date" value="{{ now()->format('Y-m-d') }}"></div></div>
+<label>Note</label><input name="note" maxlength="255" placeholder="e.g. Sent with October salaries">
+<div class="mact"><button type="button" class="mbtn cancel" onclick="closeModal('cashModal')">Cancel</button><button class="mbtn save">Save Entry</button></div>
 </form></div></div>
 <div class="modal-ov" id="expenseReportModal"><div class="modal"><h3>Export Expense PDF</h3><form id="expenseReportForm" method="GET" action="{{ url('/expenses/export/pdf') }}" onsubmit="return submitExpenseReport(this)">
 <p style="margin:10px 0 14px;color:#687076;font-size:13px">Date-wise Kitchen aur Room expenses report download karein.</p>

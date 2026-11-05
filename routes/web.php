@@ -6,6 +6,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\KitchenController;
+use App\Http\Controllers\CashController;
 
 /*
 |--------------------------------------------------------------------------
@@ -82,6 +83,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/invoices/{id}/toggle', [PageController::class, 'invoiceToggle']);
         Route::get('/invoices/{id}/download', [PageController::class, 'invoiceDownload']);
         Route::put('/kitchen/{id}', [KitchenController::class, 'update']);
+        // ---- Cash wallets: petty top-ups, transfers, cash out, and re-filing expenses ----
+        Route::post('/cash', [CashController::class, 'store']);
+        Route::post('/expenses/paid-from', [CashController::class, 'reassign']);
         Route::post('/kitchen/{id}/paid', [KitchenController::class, 'togglePaid']);
     });
 
@@ -97,6 +101,7 @@ Route::middleware('auth')->group(function () {
         Route::delete('/inventory/{id}', [PageController::class, 'invDestroy']);
         Route::delete('/room-units/{id}', [PageController::class, 'unitDestroy']);
         Route::delete('/kitchen/{id}', [KitchenController::class, 'destroy']);
+        Route::delete('/cash/{id}', [CashController::class, 'destroy']);
 
         // ---- Team accounts ----
         Route::get('/users', [UserController::class, 'index']);
