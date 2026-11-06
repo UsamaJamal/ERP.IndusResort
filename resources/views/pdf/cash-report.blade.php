@@ -63,7 +63,7 @@ table{width:100%;border-collapse:collapse}
 <tr><td>Opening balance<br><span class="sub">before {{ $d($st['from']) }}</span></td><td class="num {{ $neg($st['income']['opening']) }}">{{ $m($st['income']['opening']) }}</td><td class="num {{ $neg($st['petty']['opening']) }}">{{ $m($st['petty']['opening']) }}</td><td class="num {{ $neg($st['total']['opening']) }}">{{ $m($st['total']['opening']) }}</td></tr>
 <tr><td>Money in</td><td class="num in">{{ $m($st['income']['in']) }}</td><td class="num in">{{ $m($st['petty']['in']) }}</td><td class="num in">{{ $m($st['total']['in']) }}</td></tr>
 <tr><td>Money out</td><td class="num out">{{ $m($st['income']['out']) }}</td><td class="num out">{{ $m($st['petty']['out']) }}</td><td class="num out">{{ $m($st['total']['out']) }}</td></tr>
-<tr class="strong"><td>Closing balance<br><span class="sub">end of {{ $d($st['to']) }}</span></td><td class="num {{ $neg($st['income']['closing']) }}">{{ $m($st['income']['closing']) }}</td><td class="num {{ $neg($st['petty']['closing']) }}">{{ $m($st['petty']['closing']) }}</td><td class="num {{ $neg($st['total']['closing']) }}">{{ $m($st['total']['closing']) }}</td></tr>
+<tr class="strong"><td>Closing balance<br><span class="sub">end of {{ $d($st['to']) }}</span></td><td class="num {{ $neg($st['income']['closing']) }}">{{ $m($st['income']['closing']) }}</td><td class="num {{ $neg($st['petty']['closing']) }}">{{ $m($st['petty']['closing']) }}</td><td class="num {{ $neg($st['total']['closing']) }}">{{ $m($st['total']['closing']) }}<br><span class="sub">Cash in hand</span></td></tr>
 </tbody></table>
 <div class="note">A transfer from Income Cash to Petty Cash counts as money out of one and into the other, but not in the Total column, because the cash never left the resort.</div>
 
