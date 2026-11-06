@@ -7,6 +7,7 @@ use App\Models\Room;
 use App\Models\RoomUnit;
 use App\Models\InventoryMovement;
 use App\Models\Guest;
+use App\Models\Attachment;
 use App\Models\Booking;
 use App\Models\HousekeepingTask;
 use App\Models\InventoryItem;
@@ -157,7 +158,7 @@ class PageController extends Controller
     public function reservation()
     {
         return view('reservation', [
-            'bookings' => Booking::orderBy('id')->get(),
+            'bookings' => Booking::with('attachments')->orderBy('id')->get(),
             'rooms' => Room::orderBy('name')->get(),
             'guests' => Guest::all()->keyBy('id'),
             'units' => RoomUnit::with('room:id,name')->orderBy('number')->get()->map(function ($u) {
@@ -175,9 +176,9 @@ class PageController extends Controller
             'request'=>'nullable','duration'=>'nullable','check_in'=>'required|date','check_out'=>'required|date|after:check_in','guests'=>'nullable|integer|min:1|max:20','source'=>'nullable|string|max:60',
             'price_per_night'=>'required|integer|min:1','amount'=>'nullable|integer','extra_charges'=>'nullable|integer|min:0','status'=>'nullable',
             'partial_payment'=>'nullable|boolean','advance_amount'=>'nullable|integer|min:0',
-            'payment_receipt'=>'nullable|file|mimes:jpg,jpeg,png,webp,pdf|max:5120',
             'amenities'=>'nullable|array','amenity_notes'=>'nullable|string|max:500',
         ]);
+        $receipts = Attachment::uploaded($r, ['receipts', 'payment_receipt']);
         $data['partial_payment'] = $r->boolean('partial_payment');
         $data['advance_amount'] = (int) ($data['advance_amount'] ?? 0);
         $data['price_per_night'] = (int) $data['price_per_night'];
@@ -187,8 +188,6 @@ class PageController extends Controller
         $data['duration'] = (string) $nights;
         $data['amount'] = $data['price_per_night'] * $nights + $data['extra_charges'];
         $data['amenities'] = json_encode($data['amenities'] ?? []);
-        $data = array_merge($data, $this->storeBookingReceipt($r, $data['partial_payment']));
-        unset($data['payment_receipt']);
         $guest = Guest::updateOrCreate(
             ['name' => $data['guest_name']],
             [
@@ -213,30 +212,11 @@ class PageController extends Controller
             return back()->withErrors(['room_number' => 'Room '.$unit->number.' is '.str_replace('_', ' ', $unit->status).' and cannot be booked.'])->withInput();
         }
         $booking = Booking::create($data);
+        // On a part-paid booking the files are the advance receipts; otherwise the payment receipts.
+        Attachment::attach($receipts, 'booking', $booking->id, $data['partial_payment'] ? 'advance' : 'payment');
         $this->syncRoomForBooking($booking);
         $this->logActivity('New reservation', $booking->guest_name.' booked '.($booking->room_label ?: 'a room').' ('.$booking->code.').', 'lime');
         return back()->with('ok', 'Booking added');
-    }
-
-    /**
-     * Save the receipt attached on the reservation form, if there is one.
-     * On a part-paid booking it is the advance receipt; otherwise it is the payment proof.
-     */
-    private function storeBookingReceipt(Request $r, bool $partial): array
-    {
-        if (! $r->hasFile('payment_receipt')) {
-            return [];
-        }
-        $directory = public_path('uploads/booking-payments');
-        if (! is_dir($directory)) {
-            mkdir($directory, 0755, true);
-        }
-        $file = $r->file('payment_receipt');
-        // The extension comes from the file's content, not from the name it was uploaded under.
-        $name = ($partial ? 'advance_' : 'receipt_').time().'_'.uniqid().'.'.($file->extension() ?: 'jpg');
-        $file->move($directory, $name);
-
-        return [$partial ? 'advance_receipt_path' : 'payment_proof_path' => 'uploads/booking-payments/'.$name];
     }
 
     public function bookingUpdate(Request $r, $id)
@@ -246,12 +226,14 @@ class PageController extends Controller
             'guest_name'=>'required','cnic'=>'nullable|string|max:20','phone'=>'nullable|string|max:30','email'=>'nullable|email|max:255',
             'room_type'=>'nullable','room_number'=>'nullable','request'=>'nullable','duration'=>'nullable','check_in'=>'required|date','check_out'=>'required|date|after:check_in',
             'guests'=>'nullable|integer|min:1|max:20','source'=>'nullable|string|max:60','price_per_night'=>'required|integer|min:1','extra_charges'=>'nullable|integer|min:0',
-            'payment_receipt'=>'nullable|file|mimes:jpg,jpeg,png,webp,pdf|max:5120',
+            'remove_attachments'=>'nullable|array','remove_attachments.*'=>'integer',
             'dob'=>'nullable|date','gender'=>'nullable|string|max:30','nationality'=>'nullable|string|max:100','passport_no'=>'nullable|string|max:100',
             'amenities'=>'nullable|array','amenity_notes'=>'nullable|string|max:500',
             'partial_payment'=>'nullable|boolean','advance_amount'=>'nullable|integer|min:0',
         ]);
-        unset($data['payment_receipt']);
+        $receipts = Attachment::uploaded($r, ['receipts', 'payment_receipt']);
+        $removeIds = $data['remove_attachments'] ?? [];
+        unset($data['remove_attachments']);
         // A finished stay is only a record now: correcting it must not touch the room,
         // which may already belong to the next guest.
         $closed = $booking->status === 'checked_out';
@@ -304,10 +286,11 @@ class PageController extends Controller
         $data['room_label'] = trim(($data['room_type'] ?? '').' '.$newNumber);
         $partialNow = (bool) ($data['partial_payment'] ?? $booking->partial_payment);
         $paid = $booking->invoice_status === 'paid';
-        // While only the advance has been paid, a new receipt is the advance receipt;
-        // once the booking is paid in full it is the proof of that payment.
-        $data = array_merge($data, $this->storeBookingReceipt($r, $partialNow && ! $paid));
         $booking->update($data);
+        // While only the advance has been paid, new files are advance receipts;
+        // once the booking is paid in full they are receipts for that payment.
+        Attachment::detach($removeIds, 'booking', $booking->id);
+        Attachment::attach($receipts, 'booking', $booking->id, $partialNow && ! $paid ? 'advance' : 'payment');
         if (! $closed) {
             $this->syncRoomForBooking($booking->fresh());
         }
@@ -317,23 +300,14 @@ class PageController extends Controller
     public function bookingConfirm(Request $r, $id)
     {
         $booking = Booking::findOrFail($id);
-        $r->validate([
-            'payment_proof' => 'required|file|mimes:jpg,jpeg,png,webp,pdf|max:5120',
-        ], ['payment_proof.required' => 'Payment proof is required before confirming this reservation.']);
-
-        $directory = public_path('uploads/booking-payments');
-        if (!is_dir($directory)) {
-            mkdir($directory, 0755, true);
-        }
-        $file = $r->file('payment_proof');
-        $name = 'confirmation_proof_'.time().'_'.uniqid().'.'.$file->getClientOriginalExtension();
-        $file->move($directory, $name);
+        // Payment proof is mandatory here; one file or several.
+        $proofs = Attachment::uploaded($r, ['payment_proof'], true, 'payment proof');
 
         $booking->update([
             'status' => 'confirmed',
             'invoice_status' => $booking->partial_payment ? 'partial' : 'paid',
-            'payment_proof_path' => 'uploads/booking-payments/'.$name,
         ]);
+        Attachment::attach($proofs, 'booking', $booking->id, 'payment');
         $this->syncRoomForBooking($booking);
         return back()->with('ok', 'Reservation confirmed and payment proof saved');
     }
@@ -466,6 +440,7 @@ class PageController extends Controller
         $booking = Booking::findOrFail($id);
         $this->releaseRoomForBooking($booking);
         $this->logActivity('Booking cancelled', $booking->guest_name.' · '.($booking->room_label ?: '').' ('.$booking->code.')', 'mint');
+        Attachment::purge('booking', $booking->id);
         $booking->delete();
         return back();
     }
@@ -794,7 +769,7 @@ class PageController extends Controller
 
     public function expenses()
     {
-        $expenses = Expense::orderBy('id')->get();
+        $expenses = Expense::with('attachments')->orderBy('id')->get();
         $palette = ['Salaries and Wages'=>'#d2f3e4','Utilities'=>'#b6d8cb','Maintenance and Repairs'=>'#cbd877','Supplies'=>'#e8fb82','Marketing and Advertising'=>'#f4fac3','Miscellaneous'=>'#eefbf4'];
         $byCat = $expenses->groupBy('category')->map(function ($g) {
             return $g->sum('amount');
@@ -866,7 +841,7 @@ class PageController extends Controller
 
         // Income records for the ledger: every paid restaurant order and every paid booking.
         // They are listed beside the expenses so the page reads as one record of money in and out.
-        $incomeRecords = KitchenOrder::sales()->with('items')->orderByDesc('id')->get()->map(fn ($o) => [
+        $incomeRecords = KitchenOrder::sales()->with('items', 'attachments')->orderByDesc('id')->get()->map(fn ($o) => [
             'kind' => 'income', 'source' => 'kitchen', 'ref' => $o->id,
             'name' => $o->code.($o->customer_name ? ' · '.$o->customer_name : ''),
             'category' => 'Kitchen Sales',
@@ -875,9 +850,9 @@ class PageController extends Controller
             'amount' => (int) $o->total,
             'date' => $o->order_date,
             'link' => url('/kitchen'),
-            'receipts' => $o->payment_proof_path ? [['label' => 'Payment proof', 'path' => $o->payment_proof_path]] : [],
+            'receipts' => $o->attachments,
         ])->concat(
-            Booking::where('invoice_status', 'paid')->orderByDesc('id')->get()->map(fn ($b) => [
+            Booking::with('attachments')->where('invoice_status', 'paid')->orderByDesc('id')->get()->map(fn ($b) => [
                 'kind' => 'income', 'source' => 'room', 'ref' => $b->id,
                 'name' => $b->code.' · '.$b->guest_name,
                 'category' => 'Room Booking',
@@ -887,20 +862,17 @@ class PageController extends Controller
                 'date' => $b->check_in ?: optional($b->updated_at)->toDateString(),
                 'link' => url('/guest-profile').'?id='.$b->id,
                 // Whatever was attached on the reservation opens straight from this page too.
-                'receipts' => array_values(array_filter([
-                    $b->payment_proof_path ? ['label' => 'Payment receipt', 'path' => $b->payment_proof_path] : null,
-                    $b->advance_receipt_path ? ['label' => 'Advance receipt', 'path' => $b->advance_receipt_path] : null,
-                ])),
+                'receipts' => $b->attachments,
             ])
         )->values();
 
         // Cash entries that are neither sales nor expenses, for the ledger.
-        $cashRecords = \App\Models\CashMovement::orderByDesc('date')->orderByDesc('id')->get()->map(fn ($m) => [
+        $cashRecords = \App\Models\CashMovement::with('attachments')->orderByDesc('date')->orderByDesc('id')->get()->map(fn ($m) => [
             'kind' => 'cash', 'type' => $m->type, 'wallet' => $m->wallet, 'ref' => $m->id,
             'name' => \App\Models\CashMovement::TYPES[$m->type] ?? 'Cash entry',
             'category' => $m->type === 'topup' ? 'From owner' : ($m->type === 'transfer' ? 'Income Cash to Petty Cash' : 'From '.($m->wallet === 'petty' ? 'Petty Cash' : 'Income Cash')),
             'detail' => (string) $m->note,
-            'receipt' => $m->receipt_path,
+            'receipts' => $m->attachments,
             'quantity' => 1,
             'amount' => (int) $m->amount,
             'date' => $m->date,
@@ -943,7 +915,7 @@ class PageController extends Controller
     {
         $data = $r->validate([
             'name'=>'required','category'=>'nullable|string|max:120','custom_category'=>'nullable|string|max:255','quantity'=>'nullable|integer',
-            'amount'=>'nullable|integer','date'=>'nullable','receipt'=>'nullable|image|max:5120',
+            'amount'=>'nullable|integer','date'=>'nullable',
             'paid_from'=>'nullable|in:income,petty',
         ]);
 
@@ -952,21 +924,11 @@ class PageController extends Controller
         }
         unset($data['custom_category']);
 
-        if ($r->hasFile('receipt')) {
-            $directory = public_path('uploads/expenses');
-            if (!is_dir($directory)) {
-                mkdir($directory, 0755, true);
-            }
-            $file = $r->file('receipt');
-            $name = 'expense_'.time().'_'.uniqid().'.'.$file->getClientOriginalExtension();
-            $file->move($directory, $name);
-            $data['receipt_path'] = 'uploads/expenses/'.$name;
-        }
-
-        unset($data['receipt']);
+        $receipts = Attachment::uploaded($r, ['receipts', 'receipt']);
         // Which wallet the money left: income cash unless the form says petty.
         $data['paid_from'] = $data['paid_from'] ?? 'income';
-        Expense::create($data + ['status' => 'completed']);
+        $expense = Expense::create($data + ['status' => 'completed']);
+        Attachment::attach($receipts, 'expense', $expense->id);
         return back()->with('ok', 'Expense added');
     }
 
@@ -975,34 +937,28 @@ class PageController extends Controller
         $e = Expense::findOrFail($id);
         $data = $r->validate([
             'name'=>'required','category'=>'nullable|string|max:120','custom_category'=>'nullable|string|max:255','quantity'=>'nullable|integer',
-            'amount'=>'nullable|integer','date'=>'nullable','receipt'=>'nullable|image|max:5120',
+            'amount'=>'nullable|integer','date'=>'nullable',
             'paid_from'=>'nullable|in:income,petty',
         ]);
         if (filled($data['custom_category'] ?? null)) {
             $data['category'] = $data['custom_category'];
         }
         unset($data['custom_category']);
-        if ($r->hasFile('receipt')) {
-            $directory = public_path('uploads/expenses');
-            if (!is_dir($directory)) {
-                mkdir($directory, 0755, true);
-            }
-            $file = $r->file('receipt');
-            $name = 'expense_'.time().'_'.uniqid().'.'.$file->getClientOriginalExtension();
-            $file->move($directory, $name);
-            $data['receipt_path'] = 'uploads/expenses/'.$name;
-        }
-        unset($data['receipt']);
+        $receipts = Attachment::uploaded($r, ['receipts', 'receipt']);
         if (! isset($data['paid_from'])) {
             unset($data['paid_from']);
         }
         $e->update($data);
+        Attachment::detach($r->input('remove_attachments', []), 'expense', $e->id);
+        Attachment::attach($receipts, 'expense', $e->id);
         return back()->with('ok', 'Expense updated');
     }
 
     public function expenseDestroy($id)
     {
-        Expense::findOrFail($id)->delete();
+        $expense = Expense::findOrFail($id);
+        Attachment::purge('expense', $expense->id);
+        $expense->delete();
         return back();
     }
 
@@ -1019,7 +975,9 @@ class PageController extends Controller
             'Date: '.($expense->date ?: '-'),
         ];
 
-        $receiptPath = $expense->receipt_path ? public_path($expense->receipt_path) : null;
+        // The PDF carries the first attached picture; a PDF receipt cannot be embedded.
+        $picture = $expense->attachments->first(fn ($a) => ! preg_match('/\.pdf$/i', $a->path));
+        $receiptPath = $picture ? public_path($picture->path) : null;
         return response($this->makeExpensePdf($lines, $receiptPath), 200, [
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'attachment; filename="expense-'.$expense->id.'.pdf"',

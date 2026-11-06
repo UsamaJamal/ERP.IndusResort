@@ -136,6 +136,7 @@ button.kt-pill{border:0;cursor:pointer;font-family:inherit}
 .modal .kt-proof .kt-proof-rm{display:inline-flex;align-items:center;gap:6px;margin:0;color:#b3352f;font-size:13px;cursor:pointer}
 .modal .kt-proof .kt-proof-rm input{width:15px;height:15px;padding:0;accent-color:#b3352f}
 a.ib{text-decoration:none}
+a.att-plain,a.att-pill{text-decoration:none}
 a.ib.proof{color:#1e4f8f;border-color:#cfe0f7;background:#f3f8ff}
 /* Receipt */
 .kt-rc{font-size:13.5px}
@@ -174,7 +175,7 @@ a.ib.proof{color:#1e4f8f;border-color:#cfe0f7;background:#f3f8ff}
         'total' => (int) $o->total,
         'payment_status' => $o->payment_status,
         'note' => $o->note,
-        'proof' => $o->payment_proof_path,
+        'proofs' => $o->attachments,
         'order_date' => $o->order_date,
         'time' => optional($o->created_at)->format('g:i A'),
         'date_label' => \Carbon\Carbon::parse($o->order_date)->format('M j, Y'),
@@ -276,14 +277,13 @@ a.ib.proof{color:#1e4f8f;border-color:#cfe0f7;background:#f3f8ff}
     <div id="oPayWrap"><label>Payment</label><select name="payment_status" id="oPay"><option value="paid">Paid</option><option value="unpaid">Unpaid (pay later)</option></select></div>
     <div><label>Note</label><input name="note" id="oNote" placeholder="Optional"></div>
 </div>
-<label>Payment Proof <span style="color:#9ca3af;font-weight:400">(optional: transfer screenshot, card slip or PDF)</span></label>
+<label>Payment Proof <span style="color:#9ca3af;font-weight:400">(optional: one or several screenshots, card slips or PDFs)</span></label>
 <div class="kt-proof">
     <label class="kt-proof-btn" for="oProof"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>Attach file</label>
-    <input type="file" name="payment_proof" id="oProof" accept="image/jpeg,image/png,image/webp,application/pdf" onchange="proofPicked(this)">
+    <input type="file" name="payment_proofs[]" multiple id="oProof" accept="image/jpeg,image/png,image/webp,application/pdf" onchange="attPicked(this,'oProofName','No file attached')">
     <span id="oProofName">No file attached</span>
-    <a id="oProofView" href="#" target="_blank" rel="noopener" style="display:none">View current</a>
-    <label id="oProofRemoveWrap" class="kt-proof-rm" style="display:none"><input type="checkbox" name="remove_proof" value="1" id="oProofRemove"> Remove</label>
 </div>
+<div id="oProofNow"></div>
 <div class="mact"><button type="button" class="mbtn cancel" onclick="closeModal('orderModal')">Cancel</button><button class="mbtn save" id="orderSave">Save Order</button></div>
 </form></div></div>
 
@@ -351,7 +351,7 @@ function render(list){
         <span class="kt-total ${o.type === 'complimentary' ? 'free' : ''}">${money(o.total)}</span>
         <span>${payCell(o)}</span>
         <span class="act">
-            ${o.proof ? `<a class="ib proof" title="View payment proof" href="/${o.proof}" target="_blank" rel="noopener">${proofIco}</a>` : ''}
+            ${attButton(o.proofs, 'ib proof', proofIco, 'Payment proof · ' + o.code)}
             <button class="ib" title="Receipt" onclick="showReceipt(${o.id})">${eyeIco}</button>
             ${CAN_MANAGE_KT ? `<button class="ib" title="Edit order" onclick="openOrder(${o.id})">${editIco}</button>` : ''}
             ${IS_ADMIN_KT ? `<button class="ib del" title="Delete order" onclick="if(confirm('Delete order ${o.code}?'))post('/kitchen/${o.id}','DELETE')">${delIco}</button>` : ''}
@@ -366,7 +366,7 @@ function renderMobile(list){
         <div class="ms-top"><div class="ms-name"><b>${o.code}</b><small>${o.date_label}${o.time ? ' · ' + o.time : ''}${o.customer_name ? ' · ' + esc(o.customer_name) : ''}</small></div><span class="ms-pill ${o.type}">${TLABEL[o.type]}</span></div>
         <div class="kt-mitems">${itemsText(o)}</div>
         <div class="ms-kv two" style="margin-top:12px;padding-top:12px;border-top:1px solid #eee"><div><small>Total</small><b style="font-size:17px">${money(o.total)}</b></div><div><small>Payment</small><b>${o.type === 'complimentary' ? 'Free' : (o.payment_status === 'paid' ? 'Paid' : 'Unpaid')}</b></div></div>
-        <div class="ms-act"><button type="button" class="ms-btn gray" onclick="showReceipt(${o.id})">Receipt</button>${o.proof ? `<a class="ms-btn gray" style="text-decoration:none" href="/${o.proof}" target="_blank" rel="noopener">Proof</a>` : ''}${CAN_MANAGE_KT ? `<button type="button" class="ms-btn gray" onclick="openOrder(${o.id})">Edit</button>` : ''}${CAN_MANAGE_KT && o.type !== 'complimentary' ? `<button type="button" class="ms-btn lime" onclick="post('/kitchen/${o.id}/paid','POST')">${o.payment_status === 'paid' ? 'Mark Unpaid' : 'Mark Paid'}</button>` : ''}</div>
+        <div class="ms-act"><button type="button" class="ms-btn gray" onclick="showReceipt(${o.id})">Receipt</button>${attButton(o.proofs, 'ms-btn gray att-plain', 'Proof', 'Payment proof · ' + o.code, true)}${CAN_MANAGE_KT ? `<button type="button" class="ms-btn gray" onclick="openOrder(${o.id})">Edit</button>` : ''}${CAN_MANAGE_KT && o.type !== 'complimentary' ? `<button type="button" class="ms-btn lime" onclick="post('/kitchen/${o.id}/paid','POST')">${o.payment_status === 'paid' ? 'Mark Unpaid' : 'Mark Paid'}</button>` : ''}</div>
     </article>`).join('') || '<div class="ms-empty">No orders yet</div>';
 }
 
@@ -419,10 +419,7 @@ function openOrder(id){
     document.getElementById('orderTitle').textContent = o ? 'Edit ' + o.code : 'New Order';
     document.getElementById('orderSave').textContent = o ? 'Save Changes' : 'Save Order';
     document.getElementById('oProofName').textContent = 'No file attached';
-    const pv = document.getElementById('oProofView'), prw = document.getElementById('oProofRemoveWrap');
-    pv.style.display = (o && o.proof) ? '' : 'none';
-    prw.style.display = (o && o.proof) ? '' : 'none';
-    if (o && o.proof) { pv.href = '/' + o.proof; document.getElementById('oProofName').textContent = 'Proof attached'; }
+    attEditable('oProofNow', o ? o.proofs : []);
     if (o) {
         document.getElementById('oType').value = o.type;
         document.getElementById('oCustomer').value = o.customer_name || '';
@@ -438,12 +435,6 @@ function openOrder(id){
     openModal('orderModal');
 }
 
-function proofPicked(input){
-    const f = input.files[0];
-    if (f && f.size > 5 * 1024 * 1024) { alert('Payment proof must be 5 MB or smaller.'); input.value = ''; return; }
-    document.getElementById('oProofName').textContent = f ? f.name : 'No file attached';
-    if (f) document.getElementById('oProofRemove').checked = false;
-}
 
 function showReceipt(id){
     const o = orders.find(x => x.id === id);
@@ -452,7 +443,7 @@ function showReceipt(id){
         <div class="kt-rc-h"><b>Indus Resort Restaurant</b><small>${o.code} · ${o.date_label}${o.time ? ' · ' + o.time : ''}</small>${o.customer_name ? '<div>' + esc(o.customer_name) + (o.room_number ? ' · Room ' + esc(o.room_number) : '') + '</div>' : ''}</div>
         ${o.items.map(i => `<div class="kt-rc-row"><span>${esc(i.name)}<br><small style="color:#8b948f">${money(i.price)} each</small></span><span>×${i.quantity}</span><span>${money(i.line_total)}</span></div>`).join('')}
         <div class="kt-rc-t"><span>Total</span><span>${money(o.total)}</span></div>
-        <div style="text-align:center;margin-top:10px;color:#8b948f;font-size:12.5px">${o.type === 'complimentary' ? 'Complimentary, not charged' : (o.payment_status === 'paid' ? 'Paid. Thank you!' : 'Payment pending')}${o.note ? '<br>' + esc(o.note) : ''}${o.proof ? '<br><a href="/' + o.proof + '" target="_blank" rel="noopener" style="color:#1e4a36;font-weight:700">View payment proof</a>' : ''}</div>`;
+        <div style="text-align:center;margin-top:10px;color:#8b948f;font-size:12.5px">${o.type === 'complimentary' ? 'Complimentary, not charged' : (o.payment_status === 'paid' ? 'Paid. Thank you!' : 'Payment pending')}${o.note ? '<br>' + esc(o.note) : ''}</div>${(o.proofs || []).length ? attLinks(o.proofs) : ''}`;
     openModal('receiptModal');
 }
 

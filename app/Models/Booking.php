@@ -5,6 +5,10 @@ use Illuminate\Database\Eloquent\Model;
 
 class Booking extends Model
 {
+    use \App\Models\Concerns\HasAttachments;
+
+    public const ATTACHMENT_TYPE = 'booking';
+
     protected $guarded = [];
 
     protected $casts = [

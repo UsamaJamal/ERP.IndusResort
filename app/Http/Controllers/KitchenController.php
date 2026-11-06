@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Attachment;
 use App\Models\Expense;
 use App\Models\KitchenOrder;
 use App\Models\KitchenOrderItem;
@@ -28,7 +29,7 @@ class KitchenController extends Controller
 
     public function index()
     {
-        $orders = KitchenOrder::with('items')->orderByDesc('id')->get();
+        $orders = KitchenOrder::with('items', 'attachments')->orderByDesc('id')->get();
 
         $monthStart = now()->startOfMonth()->toDateString();
         $monthEnd = now()->endOfMonth()->toDateString();
@@ -60,6 +61,7 @@ class KitchenController extends Controller
     public function store(Request $r)
     {
         $data = $this->validated($r);
+        $proofs = Attachment::uploaded($r, ['payment_proofs', 'payment_proof'], false, 'payment proof');
 
         $order = DB::transaction(function () use ($data) {
             $order = KitchenOrder::create([
@@ -78,7 +80,7 @@ class KitchenController extends Controller
             return $order;
         });
 
-        $this->saveProof($r, $order);
+        Attachment::attach($proofs, 'kitchen', $order->id);
 
         return back()->with('ok', 'Order '.$order->code.' saved, PKR '.number_format($order->total).'.');
     }
@@ -87,6 +89,7 @@ class KitchenController extends Controller
     {
         $order = KitchenOrder::findOrFail($id);
         $data = $this->validated($r);
+        $proofs = Attachment::uploaded($r, ['payment_proofs', 'payment_proof'], false, 'payment proof');
 
         DB::transaction(function () use ($order, $data) {
             $order->update([
@@ -101,11 +104,8 @@ class KitchenController extends Controller
             $this->writeLines($order, $data['items']);
         });
 
-        if ($r->boolean('remove_proof') && ! $r->hasFile('payment_proof')) {
-            $this->deleteProofFile($order);
-            $order->update(['payment_proof_path' => null]);
-        }
-        $this->saveProof($r, $order);
+        Attachment::detach($r->input('remove_attachments', []), 'kitchen', $order->id);
+        Attachment::attach($proofs, 'kitchen', $order->id);
 
         return back()->with('ok', 'Order '.$order->code.' updated.');
     }
@@ -122,38 +122,10 @@ class KitchenController extends Controller
     {
         $order = KitchenOrder::findOrFail($id);
         $code = $order->code;
-        $this->deleteProofFile($order);
+        Attachment::purge('kitchen', $order->id);
         $order->delete();
 
         return back()->with('ok', 'Order '.$code.' deleted.');
-    }
-
-    /** Store an uploaded proof of payment, replacing any earlier file for the order. */
-    private function saveProof(Request $r, KitchenOrder $order): void
-    {
-        if (! $r->hasFile('payment_proof')) {
-            return;
-        }
-
-        $directory = public_path('uploads/kitchen-payments');
-        if (! is_dir($directory)) {
-            mkdir($directory, 0755, true);
-        }
-
-        $this->deleteProofFile($order);
-        $file = $r->file('payment_proof');
-        $name = 'kitchen_proof_'.$order->id.'_'.time().'_'.uniqid().'.'.strtolower($file->getClientOriginalExtension());
-        $file->move($directory, $name);
-        $order->update(['payment_proof_path' => 'uploads/kitchen-payments/'.$name]);
-    }
-
-    /** Remove the stored file, but only if it really lives in the kitchen uploads folder. */
-    private function deleteProofFile(KitchenOrder $order): void
-    {
-        $path = (string) $order->payment_proof_path;
-        if ($path !== '' && strpos($path, 'uploads/kitchen-payments/') === 0 && is_file(public_path($path))) {
-            @unlink(public_path($path));
-        }
     }
 
     private function validated(Request $r): array
@@ -165,15 +137,12 @@ class KitchenController extends Controller
             'payment_status' => ['required', Rule::in(['paid', 'unpaid'])],
             'note' => 'nullable|string|max:255',
             'order_date' => 'nullable|date',
-            'payment_proof' => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf|max:5120',
             'items' => 'required|array|min:1|max:60',
             'items.*.name' => 'required|string|max:120',
             'items.*.quantity' => 'required|integer|min:1|max:999',
             'items.*.price' => 'required|integer|min:0|max:1000000',
         ], [
             'items.required' => 'Add at least one item to the order.',
-            'payment_proof.mimes' => 'Payment proof must be an image (JPG, PNG, WebP) or a PDF.',
-            'payment_proof.max' => 'Payment proof must be 5 MB or smaller.',
         ]);
     }
 

@@ -90,6 +90,20 @@ function openAccount(tab){openModal('accountModal');if(tab!==undefined){const b=
 function acctTab(i,btn){document.querySelectorAll('#accountModal .acct-tabs button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');document.querySelectorAll('#accountModal .acct-pane').forEach((p,k)=>p.classList.toggle('on',k===i));}
 function acctPreview(inp){const f=inp.files&&inp.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{document.getElementById('acctPreview').innerHTML='<img src="'+e.target.result+'" alt="">';};r.readAsDataURL(f);}
 </script>
+<style>
+/* Receipt lists and the count badge on a receipt icon */
+.att-list{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.att-chip{display:flex;align-items:center;gap:10px;padding:8px 11px;border:1px solid #dfe8e2;border-radius:9px;background:#f7faf8;font-size:12.5px;color:#2b3a32;line-height:1.3}
+.att-chip a{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#1e4a36;font-weight:700;text-decoration:none}
+.att-chip a:hover{text-decoration:underline}
+.att-chip em{font-style:normal;color:#7a867f;font-size:11.5px;white-space:nowrap}
+.att-chip.gone{opacity:.55}.att-chip.gone a{text-decoration:line-through}
+.modal .att-chip .att-rm{display:inline-flex;align-items:center;gap:5px;margin:0!important;padding:0!important;border:0!important;background:none!important;color:#b3352f!important;font-size:12px!important;font-weight:700!important;cursor:pointer;white-space:nowrap}
+.modal .att-chip .att-rm input{width:14px!important;height:14px!important;padding:0!important;margin:0!important;accent-color:#b3352f;flex:0 0 14px}
+.att-none{margin-top:7px;font-size:12px;color:#7a867f}
+.att-many{position:relative}
+.att-n{position:absolute;top:-6px;right:-6px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:#1e4a36;color:#fff;font:700 10px/17px system-ui,sans-serif;font-style:normal;text-align:center;box-shadow:0 0 0 2px #fff}
+</style>
 <div class="modal-ov" id="detailModal"><div class="modal"><h3 id="detailTitle"></h3><div id="detailBody" style="font-size:14px;line-height:1.9;color:#444"></div><div class="mact"><button class="mbtn cancel" onclick="closeModal('detailModal')">Close</button></div></div></div>
 <script>
 function openModal(id){document.getElementById(id).classList.add('open')}
@@ -133,6 +147,25 @@ function downloadPdf(name, content){
 function downloadFile(name,content){if(name.toLowerCase().endsWith('.pdf'))return downloadPdf(name,content);const b=new Blob([content],{type:'text/plain'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(u);}
 window.NOTIFS=@json($notifs);
 function showNotifications(){const n=window.NOTIFS||[];showDetail('Notifications',n.length?'<ul style="margin:0;padding-left:18px">'+n.map(x=>'<li>'+x+'</li>').join('')+'</ul>':'<b>All clear</b><br>No pending reservations, low stock or rooms waiting for cleaning.');}
+/* ---- Receipts: any record can carry several files (see App\Models\Attachment). ---- */
+const attEsc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+window.ATT_REG={};
+/* The control that opens a record's files: one file opens directly, several open a list.
+   `inner` is the icon or text; `plain` leaves out the count badge (for text buttons). */
+function attButton(files,cls,inner,title,plain){files=files||[];if(!files.length)return '';
+  if(files.length===1)return `<a class="${cls}" title="View ${attEsc(String(files[0].label||'receipt').toLowerCase())}" href="/${attEsc(files[0].path)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${inner}</a>`;
+  const k='a'+files.map(f=>f.id).join('_');ATT_REG[k]={files,title:title||'Receipts'};
+  return `<a class="${cls} att-many" href="#" title="View ${files.length} receipts" onclick="event.preventDefault();event.stopPropagation();attOpen('${k}')">${inner}${plain?' ('+files.length+')':'<i class="att-n">'+files.length+'</i>'}</a>`;}
+function attOpen(k){const r=ATT_REG[k];if(r)showDetail(r.title,attLinks(r.files));}
+function attLinks(files){return '<div class="att-list">'+(files||[]).map(f=>`<div class="att-chip"><a href="/${attEsc(f.path)}" target="_blank" rel="noopener">${attEsc(f.name||String(f.path).split('/').pop())}</a><em>${attEsc(f.label||'Receipt')}</em></div>`).join('')+'</div>';}
+/* The same list inside an edit form, each file with a Remove tick that is applied on Save. */
+function attEditable(elId,files,none){const el=document.getElementById(elId);if(!el)return;files=files||[];
+  el.innerHTML=files.length?'<div class="att-list">'+files.map(f=>`<div class="att-chip"><a href="/${attEsc(f.path)}" target="_blank" rel="noopener">${attEsc(f.name||String(f.path).split('/').pop())}</a><em>${attEsc(f.label||'Receipt')}</em><label class="att-rm"><input type="checkbox" name="remove_attachments[]" value="${f.id}" onchange="this.closest('.att-chip').classList.toggle('gone',this.checked)">Remove</label></div>`).join('')+'</div>':(none?`<div class="att-none">${none}</div>`:'');}
+/* Feedback for a multi-file input, with the same limits the server enforces. */
+function attPicked(input,labelId,empty){const fs=[...input.files];
+  if(fs.length>6){alert('Attach at most 6 files at a time.');input.value='';}
+  else if(fs.some(f=>f.size>5*1024*1024)){alert('Each file must be 5 MB or smaller.');input.value='';}
+  const n=input.files.length,el=document.getElementById(labelId);if(el)el.textContent=n?(n===1?input.files[0].name:n+' files selected'):(empty||'No file selected');}
 function showDetail(title,html){const t=document.getElementById('detailTitle'),b=document.getElementById('detailBody');if(t)t.textContent=title;if(b)b.innerHTML=html;openModal('detailModal');}
 document.addEventListener('click',event=>{const button=event.target.closest('.tool');if(!button)return;if(button.classList.contains('bell')){showDetail('Notifications','<b>Notifications</b><br>No new notifications right now.');return;}showDetail('Settings','<b>Indus Resort Restaurant</b><br>System settings are available to the administrator.');});
 window.SORT={};

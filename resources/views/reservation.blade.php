@@ -284,8 +284,7 @@ function openBookingEditor(id){const b=data.find(x=>x.id===id);if(!b)return;cons
  document.getElementById('partialPaymentFields').style.display=part?'block':'none';
  /* Status moves only through Confirm / Check-in / Check-out, which record the time. */
  document.getElementById('bookingStatusWrap').style.display='none';
- const rc=[[b.payment_proof_path,'payment receipt'],[b.advance_receipt_path,'advance receipt']].filter(x=>x[0]);
- document.getElementById('bookingReceiptNow').innerHTML=rc.length?'Attached now: '+rc.map(x=>`<a href="/${x[0]}" target="_blank" rel="noopener">View ${x[1]}</a>`).join(' · ')+'. A new upload replaces it.':'No receipt attached yet.';
+ attEditable('bookingReceiptNow',b.attachments,'No receipt attached yet.');
  document.getElementById('bookingFullEdit').value='1';
  openModal('addBooking');}
 /* Financials links here as /reservation?edit=ID to open a booking's form directly. */
@@ -310,7 +309,7 @@ function renderMobile(list){
  el.innerHTML=list.map((b,i)=>{
   const next=NEXT[b.status]?(b.status==='pending'?`<button class="mr-btn next" onclick="openPaymentProof(${b.id},'${b.code||''}')">Confirm</button>`:`<button class="mr-btn next" onclick="openStayStamp(${b.id},'${NEXT[b.status][0]}','${b.code||''}')">${NEXT[b.status][1]}</button>`):`<span class="mr-btn done" style="display:inline-flex;align-items:center">Done</span>`;
   const cancel=(IS_ADMIN&&(b.status==='pending'||b.status==='confirmed'))?`<button class="mr-btn cancel" onclick="if(confirm('Cancel this booking?'))post('/bookings/${b.id}','DELETE')">Cancel</button>`:'';
-  const rcPath=b.payment_proof_path||b.advance_receipt_path;const proof=rcPath?`<a class="mr-eye" title="View payment receipt" href="/${rcPath}" target="_blank" rel="noopener">${proofIcon}</a>`:'';
+  const proof=attButton(b.attachments,'mr-eye',proofIcon,'Receipts · '+(b.code||''));
   return `<article class="mr-card"><div class="mr-top"><span class="mr-av c${(i%4)+1}">${mInitials(b.guest_name)}</span><div class="mr-name"><b>${b.guest_name||''}</b><small>${b.code||''}</small></div><em class="mr-st ${b.status}">${STL[b.status]||b.status}</em><a class="mr-go" href="/guest-profile?id=${b.id}" aria-label="Open">${mIcon.chev}</a></div><div class="mr-meta"><span>${mIcon.bed}${b.room_label||((b.room_type||'')+' '+(b.room_number||''))}</span>${(b.check_in||b.check_out)?`<span>${mIcon.cal}<i>${mRange(b.check_in,b.check_out)}</i></span>`:''}<span>${mIcon.moon}${mNights(b)}</span></div><div class="mr-act"><button class="mr-eye" title="View guest profile" onclick="location.href='/guest-profile?id=${b.id}'">${eye}</button>${proof}${CAN_MANAGE?`<button class="mr-eye" title="Edit" onclick="openBookingEditor(${b.id})">${edit}</button>`:''}${next}${cancel}</div></article>`;
  }).join('')||'<div class="mr-empty">No reservations found</div>';
  const pg=document.getElementById('mPager'),st=(window.PGSTATE&&PGSTATE.res)||{page:1},pages=Math.max(1,Math.ceil(lastFiltered.length/8));
@@ -332,7 +331,7 @@ function render(list){
    <span><em class="rs-status ${b.status}"><i></i>${label}</em></span>
    <span class="act" onclick="event.stopPropagation()">
      <button class="rs-ib" title="View guest profile" onclick="location.href='/guest-profile?id=${b.id}'">${eye}</button>
-     ${(b.payment_proof_path||b.advance_receipt_path)?`<a class="rs-ib" title="View payment receipt" href="/${b.payment_proof_path||b.advance_receipt_path}" target="_blank" rel="noopener">${proofIcon}</a>`:''}
+     ${attButton(b.attachments,'rs-ib',proofIcon,'Receipts · '+(b.code||''))}
      ${CAN_MANAGE?`<button class="rs-ib" title="Edit reservation" onclick="openBookingEditor(${b.id})">${edit}</button>`:''}
      ${NEXT[b.status]?(b.status==='pending'?`<button class="rs-ib next" title="Confirm reservation" onclick="openPaymentProof(${b.id},'${b.code||''}')">Confirm</button>`:`<button class="rs-ib next" title="${NEXT[b.status][1]}" onclick="openStayStamp(${b.id},'${NEXT[b.status][0]}','${b.code||''}')">${NEXT[b.status][1]}</button>`):''}
      ${(IS_ADMIN&&(b.status==='pending'||b.status==='confirmed'))?`<button class="rs-ib del" title="Cancel booking" onclick="if(confirm('Cancel this booking?'))post('/bookings/${b.id}','DELETE')">${trash}</button>`:''}
@@ -355,7 +354,6 @@ document.getElementById('fDateEnd').addEventListener('change',applyFilters);
 applyFilters();
 (function(){const q=new URLSearchParams(location.search).get('q');if(q){['fSearch','mSearch'].forEach(i=>{const el=document.getElementById(i);if(el)el.value=q;});applyFilters();}})();
 </script>
-<style>.modal .rc-now{margin-top:7px;font-size:12px;color:#68756d}.modal .rc-now a{color:#1e4a36;font-weight:700}</style>
 <div class="modal-ov" id="addBooking" data-sticky><div class="modal wide"><h3 id="bookingModalTitle">Add Reservation</h3><form id="bookingForm" method="POST" action="{{ url('/bookings') }}" enctype="multipart/form-data">@csrf<input type="hidden" name="_method" id="bookingMethod" value=""><input type="hidden" name="full_edit" id="bookingFullEdit" value="">
 @if($errors->any())<div style="margin:0 0 12px;padding:10px 12px;border-radius:9px;background:#fff0f0;color:#b3352f;font-size:13px">Please check the highlighted details below. @foreach($errors->all() as $error)<div style="margin-top:3px">• {{ $error }}</div>@endforeach</div>@endif
 <div class="msec">Guest details</div>
@@ -376,7 +374,7 @@ applyFilters();
 <label>Advance Amount (PKR)</label><input type="number" name="advance_amount" min="0" placeholder="Enter advance amount">
 </div>
 {{-- The receipt is offered on every reservation, not only part-paid ones. --}}
-<label style="margin-top:14px!important">Payment Receipt / Picture <small style="font-weight:400;color:#8a927c">optional</small></label><label class="receipt-upload"><span>Upload receipt</span><small id="advanceReceiptName">No file selected</small><input type="file" name="payment_receipt" accept="image/*,.pdf" onchange="document.getElementById('advanceReceiptName').textContent=this.files[0]?this.files[0].name:'No file selected'"></label>
+<label style="margin-top:14px!important">Payment Receipts / Pictures <small style="font-weight:400;color:#8a927c">optional · one or several, image or PDF</small></label><label class="receipt-upload"><span>Upload receipts</span><small id="advanceReceiptName">No file selected</small><input type="file" name="receipts[]" multiple accept="image/*,.pdf" onchange="attPicked(this,'advanceReceiptName')"></label>
 <div id="bookingReceiptNow" class="rc-now"></div>
 <div class="mact"><button type="button" class="mbtn cancel" onclick="closeModal('addBooking')">Cancel</button><button class="mbtn save">Save</button></div>
 </form></div></div>
@@ -395,12 +393,12 @@ applyFilters();
 </style>
 <div class="modal-ov" id="paymentProofModal"><div class="modal payment-proof-card"><h3 class="payment-proof-title"><span class="payment-proof-icon"><svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg></span>Confirm Reservation</h3><form id="paymentProofForm" method="POST" enctype="multipart/form-data">@csrf
 <p class="proof-intro">Attach the guest's payment proof to confirm <span class="proof-ref" id="paymentProofCode"></span>.</p>
-<label class="proof-label">Payment proof <small>REQUIRED</small></label><label class="proof-drop" id="paymentProofDrop"><span class="proof-drop-icon"><svg viewBox="0 0 24 24"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M5 20h14"/></svg></span><span class="proof-drop-text" id="paymentProofName">Upload payment proof<small>JPG, PNG, WEBP or PDF · maximum 5 MB</small></span><input id="paymentProofInput" type="file" name="payment_proof" accept="image/jpeg,image/png,image/webp,application/pdf" required onchange="setPaymentProofName(this)"></label>
+<label class="proof-label">Payment proof <small>REQUIRED</small></label><label class="proof-drop" id="paymentProofDrop"><span class="proof-drop-icon"><svg viewBox="0 0 24 24"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M5 20h14"/></svg></span><span class="proof-drop-text" id="paymentProofName">Upload payment proof<small>One or several files · JPG, PNG, WEBP or PDF · 5 MB each</small></span><input id="paymentProofInput" type="file" name="payment_proof[]" multiple accept="image/jpeg,image/png,image/webp,application/pdf" required onchange="setPaymentProofName(this)"></label>
 <p class="proof-note"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>Your uploaded file is stored securely with this reservation.</p>
 <div class="mact"><button type="button" class="mbtn cancel" onclick="closeModal('paymentProofModal')">Cancel</button><button class="mbtn save">Attach &amp; Confirm</button></div>
 </form></div></div>
 <script>
-function setPaymentProofName(input){const name=input.files[0]?.name||'';const el=document.getElementById('paymentProofName'),drop=document.getElementById('paymentProofDrop');el.innerHTML=name?`<span>${name}</span><small>Payment proof ready to attach</small>`:'Upload payment proof<small>JPG, PNG, WEBP or PDF · maximum 5 MB</small>';drop.classList.toggle('has-file',Boolean(name));}
+function setPaymentProofName(input){attPicked(input,'');const n=input.files.length,name=n>1?n+' files selected':(input.files[0]?.name||'');const el=document.getElementById('paymentProofName'),drop=document.getElementById('paymentProofDrop');el.innerHTML=name?`<span>${name}</span><small>Payment proof ready to attach</small>`:'Upload payment proof<small>One or several files · JPG, PNG, WEBP or PDF · 5 MB each</small>';drop.classList.toggle('has-file',Boolean(name));}
 function openPaymentProof(id,code){const form=document.getElementById('paymentProofForm');form.action='/bookings/'+id+'/confirm';document.getElementById('paymentProofCode').textContent=code?'#'+code:'this reservation';const input=document.getElementById('paymentProofInput');input.value='';setPaymentProofName(input);openModal('paymentProofModal');}
 </script>
 <div class="modal-ov" id="stayStampModal"><div class="modal"><h3 id="stayStampTitle">Record Check-In</h3><form id="stayStampForm" method="POST">@csrf
