@@ -11,9 +11,9 @@ use Illuminate\Validation\Rule;
 /** Cash entries on the Financials page: petty top-ups, transfers and cash out. */
 class CashController extends Controller
 {
-    public function store(Request $r)
+    private function validated(Request $r): array
     {
-        $data = $r->validate([
+        return $r->validate([
             'type' => ['required', Rule::in(array_keys(CashMovement::TYPES))],
             'wallet' => ['nullable', Rule::in(['income', 'petty'])],
             'amount' => 'required|integer|min:1|max:100000000',
@@ -24,6 +24,55 @@ class CashController extends Controller
             'receipt.mimes' => 'The receipt must be an image (JPG, PNG, WebP) or a PDF.',
             'receipt.max' => 'The receipt must be 5 MB or smaller.',
         ]);
+    }
+
+    /** Store an uploaded receipt for a cash entry and return its public path. */
+    private function saveReceipt(Request $r, CashMovement $movement): string
+    {
+        $directory = public_path('uploads/cash-receipts');
+        if (! is_dir($directory)) {
+            mkdir($directory, 0755, true);
+        }
+        $file = $r->file('receipt');
+        $name = 'cash_'.$movement->id.'_'.time().'_'.uniqid().'.'.($file->extension() ?: 'jpg');
+        $file->move($directory, $name);
+
+        return 'uploads/cash-receipts/'.$name;
+    }
+
+    private function removeReceipt(CashMovement $movement): void
+    {
+        // Only a file that really lives in the cash uploads folder is removed.
+        $path = (string) $movement->receipt_path;
+        if ($path !== '' && strpos($path, 'uploads/cash-receipts/') === 0 && is_file(public_path($path))) {
+            @unlink(public_path($path));
+        }
+    }
+
+    public function update(Request $r, $id)
+    {
+        $movement = CashMovement::findOrFail($id);
+        $data = $this->validated($r);
+
+        $changes = [
+            'type' => $data['type'],
+            'wallet' => $data['type'] === 'cash_out' ? ($data['wallet'] ?? 'income') : 'petty',
+            'amount' => (int) $data['amount'],
+            'date' => $data['date'] ?? $movement->date,
+            'note' => $data['note'] ?? null,
+        ];
+        if ($r->hasFile('receipt')) {
+            $this->removeReceipt($movement);
+            $changes['receipt_path'] = $this->saveReceipt($r, $movement);
+        }
+        $movement->update($changes);
+
+        return back()->with('ok', 'Cash entry updated.');
+    }
+
+    public function store(Request $r)
+    {
+        $data = $this->validated($r);
 
         $movement = CashMovement::create([
             'type' => $data['type'],
@@ -36,14 +85,7 @@ class CashController extends Controller
         ]);
 
         if ($r->hasFile('receipt')) {
-            $directory = public_path('uploads/cash-receipts');
-            if (! is_dir($directory)) {
-                mkdir($directory, 0755, true);
-            }
-            $file = $r->file('receipt');
-            $name = 'cash_'.$movement->id.'_'.time().'_'.uniqid().'.'.strtolower($file->getClientOriginalExtension());
-            $file->move($directory, $name);
-            $movement->update(['receipt_path' => 'uploads/cash-receipts/'.$name]);
+            $movement->update(['receipt_path' => $this->saveReceipt($r, $movement)]);
         }
 
         return back()->with('ok', CashMovement::TYPES[$movement->type].' of PKR '.number_format($movement->amount).' recorded.');
@@ -52,11 +94,7 @@ class CashController extends Controller
     public function destroy($id)
     {
         $movement = CashMovement::findOrFail($id);
-        // Remove the stored receipt too, but only if it really lives in the cash uploads folder.
-        $path = (string) $movement->receipt_path;
-        if ($path !== '' && strpos($path, 'uploads/cash-receipts/') === 0 && is_file(public_path($path))) {
-            @unlink(public_path($path));
-        }
+        $this->removeReceipt($movement);
         $movement->delete();
 
         return back()->with('ok', 'Cash entry deleted.');

@@ -406,6 +406,8 @@ function syncType(){
     document.getElementById('oPayWrap').style.visibility = t === 'complimentary' ? 'hidden' : 'visible';
     document.getElementById('oSumLabel').textContent = t === 'complimentary' ? 'Value (not charged)' : 'Order total';
 }
+/* Financials links here as /kitchen?edit=ID to open an order's form directly. */
+document.addEventListener('DOMContentLoaded',()=>{const id=Number(new URLSearchParams(location.search).get('edit'));if(id&&CAN_MANAGE_KT&&orders.some(o=>o.id===id)){openOrder(id);history.replaceState(null,'',location.pathname);}});
 function openOrder(id){
     const f = document.getElementById('orderForm');
     const o = id ? orders.find(x => x.id === id) : null;

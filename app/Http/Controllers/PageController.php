@@ -247,11 +247,17 @@ class PageController extends Controller
             'room_type'=>'nullable','room_number'=>'nullable','request'=>'nullable','duration'=>'nullable','check_in'=>'required|date','check_out'=>'required|date|after:check_in',
             'guests'=>'nullable|integer|min:1|max:20','source'=>'nullable|string|max:60','price_per_night'=>'required|integer|min:1','extra_charges'=>'nullable|integer|min:0',
             'payment_receipt'=>'nullable|file|mimes:jpg,jpeg,png,webp,pdf|max:5120',
+            'dob'=>'nullable|date','gender'=>'nullable|string|max:30','nationality'=>'nullable|string|max:100','passport_no'=>'nullable|string|max:100',
+            'amenities'=>'nullable|array','amenity_notes'=>'nullable|string|max:500',
+            'partial_payment'=>'nullable|boolean','advance_amount'=>'nullable|integer|min:0',
         ]);
         unset($data['payment_receipt']);
+        // A finished stay is only a record now: correcting it must not touch the room,
+        // which may already belong to the next guest.
+        $closed = $booking->status === 'checked_out';
         $newNumber = trim((string) ($data['room_number'] ?? ''));
         $oldNumber = trim((string) $booking->room_number);
-        if ($newNumber !== $oldNumber) {
+        if (! $closed && $newNumber !== $oldNumber) {
             $unit = RoomUnit::findByNumber($newNumber);
             if ($unit && $unit->status !== 'available') {
                 return back()->with('ok', 'Room '.$unit->number.' is '.str_replace('_', ' ', $unit->status).' and cannot be assigned.');
@@ -261,17 +267,50 @@ class PageController extends Controller
         if ($booking->guest_id) {
             Guest::where('id', $booking->guest_id)->update(array_filter([
                 'name' => $data['guest_name'], 'phone' => $data['phone'] ?? null, 'email' => $data['email'] ?? null,
+                'dob' => $data['dob'] ?? null, 'gender' => $data['gender'] ?? null,
+                'nationality' => $data['nationality'] ?? null, 'passport_no' => $data['passport_no'] ?? null,
             ], fn ($v) => $v !== null));
         }
-        unset($data['phone'], $data['email']);
+        unset($data['phone'], $data['email'], $data['dob'], $data['gender'], $data['nationality'], $data['passport_no']);
+
+        // The edit form sends these only once it has loaded the booking's own values into
+        // itself (full_edit); without that, an empty box would wipe what is stored.
+        $full = $r->boolean('full_edit');
+        $amenities = $data['amenities'] ?? [];
+        $partial = $r->boolean('partial_payment');
+        $advance = (int) ($data['advance_amount'] ?? 0);
+        unset($data['amenities'], $data['partial_payment'], $data['advance_amount']);
+        if (! $full) {
+            unset($data['amenity_notes']);
+        } else {
+            $data['amenities'] = json_encode(array_values($amenities));
+            $data['partial_payment'] = $partial && $advance > 0;
+            $data['advance_amount'] = $data['partial_payment'] ? $advance : 0;
+            // A fully paid booking stays paid; otherwise the advance decides the invoice state.
+            if ($booking->invoice_status !== 'paid') {
+                $data['invoice_status'] = $data['partial_payment'] ? 'partial' : 'unpaid';
+            }
+        }
+
         $data['extra_charges'] = (int) ($data['extra_charges'] ?? 0);
         $nights = max(1, \Carbon\Carbon::parse($data['check_in'])->diffInDays(\Carbon\Carbon::parse($data['check_out'])));
+        // A stay that has ended keeps the checkout rule: bill the longer of booked and stayed nights.
+        if ($closed && $booking->checked_out_at) {
+            $nights = max($nights, $this->stayedNights($booking, $booking->checked_out_at));
+            $data['billed_nights'] = $nights;
+        }
         $data['duration'] = (string) $nights;
         $data['amount'] = $data['price_per_night'] * $nights + $data['extra_charges'];
         $data['room_label'] = trim(($data['room_type'] ?? '').' '.$newNumber);
-        $data = array_merge($data, $this->storeBookingReceipt($r, (bool) $booking->partial_payment));
+        $partialNow = (bool) ($data['partial_payment'] ?? $booking->partial_payment);
+        $paid = $booking->invoice_status === 'paid';
+        // While only the advance has been paid, a new receipt is the advance receipt;
+        // once the booking is paid in full it is the proof of that payment.
+        $data = array_merge($data, $this->storeBookingReceipt($r, $partialNow && ! $paid));
         $booking->update($data);
-        $this->syncRoomForBooking($booking->fresh());
+        if (! $closed) {
+            $this->syncRoomForBooking($booking->fresh());
+        }
         return back()->with('ok', 'Reservation updated');
     }
 
