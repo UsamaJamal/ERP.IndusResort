@@ -175,7 +175,7 @@ class PageController extends Controller
             'request'=>'nullable','duration'=>'nullable','check_in'=>'required|date','check_out'=>'required|date|after:check_in','guests'=>'nullable|integer|min:1|max:20','source'=>'nullable|string|max:60',
             'price_per_night'=>'required|integer|min:1','amount'=>'nullable|integer','extra_charges'=>'nullable|integer|min:0','status'=>'nullable',
             'partial_payment'=>'nullable|boolean','advance_amount'=>'nullable|integer|min:0',
-            'advance_receipt'=>'nullable|image|max:5120',
+            'payment_receipt'=>'nullable|file|mimes:jpg,jpeg,png,webp,pdf|max:5120',
             'amenities'=>'nullable|array','amenity_notes'=>'nullable|string|max:500',
         ]);
         $data['partial_payment'] = $r->boolean('partial_payment');
@@ -187,17 +187,8 @@ class PageController extends Controller
         $data['duration'] = (string) $nights;
         $data['amount'] = $data['price_per_night'] * $nights + $data['extra_charges'];
         $data['amenities'] = json_encode($data['amenities'] ?? []);
-        if ($r->hasFile('advance_receipt')) {
-            $directory = public_path('uploads/booking-payments');
-            if (!is_dir($directory)) {
-                mkdir($directory, 0755, true);
-            }
-            $file = $r->file('advance_receipt');
-            $name = 'advance_'.time().'_'.uniqid().'.'.$file->getClientOriginalExtension();
-            $file->move($directory, $name);
-            $data['advance_receipt_path'] = 'uploads/booking-payments/'.$name;
-        }
-        unset($data['advance_receipt']);
+        $data = array_merge($data, $this->storeBookingReceipt($r, $data['partial_payment']));
+        unset($data['payment_receipt']);
         $guest = Guest::updateOrCreate(
             ['name' => $data['guest_name']],
             [
@@ -227,6 +218,27 @@ class PageController extends Controller
         return back()->with('ok', 'Booking added');
     }
 
+    /**
+     * Save the receipt attached on the reservation form, if there is one.
+     * On a part-paid booking it is the advance receipt; otherwise it is the payment proof.
+     */
+    private function storeBookingReceipt(Request $r, bool $partial): array
+    {
+        if (! $r->hasFile('payment_receipt')) {
+            return [];
+        }
+        $directory = public_path('uploads/booking-payments');
+        if (! is_dir($directory)) {
+            mkdir($directory, 0755, true);
+        }
+        $file = $r->file('payment_receipt');
+        // The extension comes from the file's content, not from the name it was uploaded under.
+        $name = ($partial ? 'advance_' : 'receipt_').time().'_'.uniqid().'.'.($file->extension() ?: 'jpg');
+        $file->move($directory, $name);
+
+        return [$partial ? 'advance_receipt_path' : 'payment_proof_path' => 'uploads/booking-payments/'.$name];
+    }
+
     public function bookingUpdate(Request $r, $id)
     {
         $booking = Booking::findOrFail($id);
@@ -234,7 +246,9 @@ class PageController extends Controller
             'guest_name'=>'required','cnic'=>'nullable|string|max:20','phone'=>'nullable|string|max:30','email'=>'nullable|email|max:255',
             'room_type'=>'nullable','room_number'=>'nullable','request'=>'nullable','duration'=>'nullable','check_in'=>'required|date','check_out'=>'required|date|after:check_in',
             'guests'=>'nullable|integer|min:1|max:20','source'=>'nullable|string|max:60','price_per_night'=>'required|integer|min:1','extra_charges'=>'nullable|integer|min:0',
+            'payment_receipt'=>'nullable|file|mimes:jpg,jpeg,png,webp,pdf|max:5120',
         ]);
+        unset($data['payment_receipt']);
         $newNumber = trim((string) ($data['room_number'] ?? ''));
         $oldNumber = trim((string) $booking->room_number);
         if ($newNumber !== $oldNumber) {
@@ -255,6 +269,7 @@ class PageController extends Controller
         $data['duration'] = (string) $nights;
         $data['amount'] = $data['price_per_night'] * $nights + $data['extra_charges'];
         $data['room_label'] = trim(($data['room_type'] ?? '').' '.$newNumber);
+        $data = array_merge($data, $this->storeBookingReceipt($r, (bool) $booking->partial_payment));
         $booking->update($data);
         $this->syncRoomForBooking($booking->fresh());
         return back()->with('ok', 'Reservation updated');
@@ -821,6 +836,7 @@ class PageController extends Controller
             'amount' => (int) $o->total,
             'date' => $o->order_date,
             'link' => url('/kitchen'),
+            'receipts' => $o->payment_proof_path ? [['label' => 'Payment proof', 'path' => $o->payment_proof_path]] : [],
         ])->concat(
             Booking::where('invoice_status', 'paid')->orderByDesc('id')->get()->map(fn ($b) => [
                 'kind' => 'income', 'source' => 'room', 'ref' => $b->id,
@@ -831,6 +847,11 @@ class PageController extends Controller
                 'amount' => (int) $b->amount,
                 'date' => $b->check_in ?: optional($b->updated_at)->toDateString(),
                 'link' => url('/guest-profile').'?id='.$b->id,
+                // Whatever was attached on the reservation opens straight from this page too.
+                'receipts' => array_values(array_filter([
+                    $b->payment_proof_path ? ['label' => 'Payment receipt', 'path' => $b->payment_proof_path] : null,
+                    $b->advance_receipt_path ? ['label' => 'Advance receipt', 'path' => $b->advance_receipt_path] : null,
+                ])),
             ])
         )->values();
 

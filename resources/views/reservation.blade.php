@@ -269,8 +269,9 @@ const roomUnits=@json($units);
 /* Room numbers come from the room-number list: only free rooms can be picked; booked ones are shown disabled. */
 function fillRoomUnits(type,keep){const sel=document.getElementById('bookingRoomNumber'),inp=document.getElementById('bookingRoomInput');const list=roomUnits.filter(u=>u.type===type);if(!list.length){sel.style.display='none';sel.disabled=true;inp.style.display='';inp.disabled=false;return;}inp.style.display='none';inp.disabled=true;sel.style.display='';sel.disabled=false;const free=list.filter(u=>u.status==='available').length;sel.innerHTML='<option value="">'+(free?'Select room number ('+free+' available)':'No rooms available')+'</option>'+list.map(u=>{const ok=u.status==='available'||u.number===keep;return '<option value="'+u.number+'"'+(ok?'':' disabled')+(u.number===keep?' selected':'')+'>Room '+u.number+(ok?'':' - '+u.status.replace('_',' '))+'</option>';}).join('');if(keep){sel.value=keep;inp.value=keep;}}
 const guestsById=@json($guests ?? []);
-function openBookingCreator(){const f=document.getElementById('bookingForm');f.reset();f.action='{{ url('/bookings') }}';document.getElementById('bookingMethod').value='';document.getElementById('bookingModalTitle').textContent='Add Reservation';fillRoomUnits('');openModal('addBooking');}
-function openBookingEditor(id){const b=data.find(x=>x.id===id);if(!b)return;const f=document.getElementById('bookingForm');f.reset();f.action='{{ url('/bookings') }}/'+b.id;document.getElementById('bookingMethod').value='PUT';document.getElementById('bookingModalTitle').textContent='Edit Reservation '+b.code;
+function bookingFormTidy(){document.getElementById('partialPaymentFields').style.display='none';document.getElementById('advanceReceiptName').textContent='No file selected';}
+function openBookingCreator(){const f=document.getElementById('bookingForm');f.reset();f.action='{{ url('/bookings') }}';document.getElementById('bookingMethod').value='';document.getElementById('bookingModalTitle').textContent='Add Reservation';bookingFormTidy();fillRoomUnits('');openModal('addBooking');}
+function openBookingEditor(id){const b=data.find(x=>x.id===id);if(!b)return;const f=document.getElementById('bookingForm');f.reset();f.action='{{ url('/bookings') }}/'+b.id;document.getElementById('bookingMethod').value='PUT';document.getElementById('bookingModalTitle').textContent='Edit Reservation '+b.code;bookingFormTidy();
  const g=guestsById[b.guest_id]||{};['guest_name','cnic','request','duration','check_in','check_out','guests','price_per_night','extra_charges','status','source'].forEach(k=>{if(f.elements[k])f.elements[k].value=(b[k]??'')===null?'':(k==='check_in'||k==='check_out')?String(b[k]||'').slice(0,10):(b[k]??'');});
  ['phone','email','dob','gender','nationality','passport_no'].forEach(k=>{if(f.elements[k]&&g[k]!=null)f.elements[k].value=g[k];});
  if(f.elements.room_type){f.elements.room_type.value=b.room_type||'';fillRoomUnits(b.room_type||'',b.room_number);}
@@ -295,7 +296,7 @@ function renderMobile(list){
  el.innerHTML=list.map((b,i)=>{
   const next=NEXT[b.status]?(b.status==='pending'?`<button class="mr-btn next" onclick="openPaymentProof(${b.id},'${b.code||''}')">Confirm</button>`:`<button class="mr-btn next" onclick="openStayStamp(${b.id},'${NEXT[b.status][0]}','${b.code||''}')">${NEXT[b.status][1]}</button>`):`<span class="mr-btn done" style="display:inline-flex;align-items:center">Done</span>`;
   const cancel=(IS_ADMIN&&(b.status==='pending'||b.status==='confirmed'))?`<button class="mr-btn cancel" onclick="if(confirm('Cancel this booking?'))post('/bookings/${b.id}','DELETE')">Cancel</button>`:'';
-  const proof=b.payment_proof_path?`<a class="mr-eye" title="View payment proof" href="/${b.payment_proof_path}" target="_blank" rel="noopener">${proofIcon}</a>`:'';
+  const rcPath=b.payment_proof_path||b.advance_receipt_path;const proof=rcPath?`<a class="mr-eye" title="View payment receipt" href="/${rcPath}" target="_blank" rel="noopener">${proofIcon}</a>`:'';
   return `<article class="mr-card"><div class="mr-top"><span class="mr-av c${(i%4)+1}">${mInitials(b.guest_name)}</span><div class="mr-name"><b>${b.guest_name||''}</b><small>${b.code||''}</small></div><em class="mr-st ${b.status}">${STL[b.status]||b.status}</em><a class="mr-go" href="/guest-profile?id=${b.id}" aria-label="Open">${mIcon.chev}</a></div><div class="mr-meta"><span>${mIcon.bed}${b.room_label||((b.room_type||'')+' '+(b.room_number||''))}</span>${(b.check_in||b.check_out)?`<span>${mIcon.cal}<i>${mRange(b.check_in,b.check_out)}</i></span>`:''}<span>${mIcon.moon}${mNights(b)}</span></div><div class="mr-act"><button class="mr-eye" title="View guest profile" onclick="location.href='/guest-profile?id=${b.id}'">${eye}</button>${proof}${(CAN_MANAGE&&b.status!=='checked_out')?`<button class="mr-eye" title="Edit" onclick="openBookingEditor(${b.id})">${edit}</button>`:''}${next}${cancel}</div></article>`;
  }).join('')||'<div class="mr-empty">No reservations found</div>';
  const pg=document.getElementById('mPager'),st=(window.PGSTATE&&PGSTATE.res)||{page:1},pages=Math.max(1,Math.ceil(lastFiltered.length/8));
@@ -317,7 +318,7 @@ function render(list){
    <span><em class="rs-status ${b.status}"><i></i>${label}</em></span>
    <span class="act" onclick="event.stopPropagation()">
      <button class="rs-ib" title="View guest profile" onclick="location.href='/guest-profile?id=${b.id}'">${eye}</button>
-     ${b.payment_proof_path?`<a class="rs-ib" title="View payment proof" href="/${b.payment_proof_path}" target="_blank" rel="noopener">${proofIcon}</a>`:''}
+     ${(b.payment_proof_path||b.advance_receipt_path)?`<a class="rs-ib" title="View payment receipt" href="/${b.payment_proof_path||b.advance_receipt_path}" target="_blank" rel="noopener">${proofIcon}</a>`:''}
      ${(CAN_MANAGE&&b.status!=='checked_out')?`<button class="rs-ib" title="Edit reservation" onclick="openBookingEditor(${b.id})">${edit}</button>`:''}
      ${NEXT[b.status]?(b.status==='pending'?`<button class="rs-ib next" title="Confirm reservation" onclick="openPaymentProof(${b.id},'${b.code||''}')">Confirm</button>`:`<button class="rs-ib next" title="${NEXT[b.status][1]}" onclick="openStayStamp(${b.id},'${NEXT[b.status][0]}','${b.code||''}')">${NEXT[b.status][1]}</button>`):''}
      ${(IS_ADMIN&&(b.status==='pending'||b.status==='confirmed'))?`<button class="rs-ib del" title="Cancel booking" onclick="if(confirm('Cancel this booking?'))post('/bookings/${b.id}','DELETE')">${trash}</button>`:''}
@@ -359,8 +360,9 @@ applyFilters();
 <label class="partial-payment-toggle"><input type="checkbox" name="partial_payment" value="1" onchange="document.getElementById('partialPaymentFields').style.display=this.checked?'block':'none'"><span><b>Partial Payment</b><small>Record the advance payment received from the guest</small></span></label>
 <div id="partialPaymentFields" class="partial-payment-fields">
 <label>Advance Amount (PKR)</label><input type="number" name="advance_amount" min="0" placeholder="Enter advance amount">
-<label style="margin-top:12px!important">Advance Payment Receipt / Picture</label><label class="receipt-upload"><span>Upload receipt</span><small id="advanceReceiptName">No file selected</small><input type="file" name="advance_receipt" accept="image/*" onchange="document.getElementById('advanceReceiptName').textContent=this.files[0]?this.files[0].name:'No file selected'"></label>
 </div>
+{{-- The receipt is offered on every reservation, not only part-paid ones. --}}
+<label style="margin-top:14px!important">Payment Receipt / Picture <small style="font-weight:400;color:#8a927c">optional</small></label><label class="receipt-upload"><span>Upload receipt</span><small id="advanceReceiptName">No file selected</small><input type="file" name="payment_receipt" accept="image/*,.pdf" onchange="document.getElementById('advanceReceiptName').textContent=this.files[0]?this.files[0].name:'No file selected'"></label>
 <div class="mact"><button type="button" class="mbtn cancel" onclick="closeModal('addBooking')">Cancel</button><button class="mbtn save">Save</button></div>
 </form></div></div>
 <style>
