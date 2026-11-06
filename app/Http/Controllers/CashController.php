@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\CashMovement;
 use App\Models\Expense;
+use App\Support\Cashbook;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -59,6 +60,45 @@ class CashController extends Controller
         $movement->delete();
 
         return back()->with('ok', 'Cash entry deleted.');
+    }
+
+    /** A cash statement for a chosen date range, as a PDF. */
+    public function report(Request $r)
+    {
+        $data = $r->validate([
+            'from' => 'required|date_format:Y-m-d',
+            'to' => 'required|date_format:Y-m-d|after_or_equal:from',
+            'detail' => 'nullable|boolean',
+        ]);
+
+        $statement = Cashbook::statement($data['from'], $data['to']);
+        $html = view('pdf.cash-report', [
+            'st' => $statement,
+            'detail' => $r->boolean('detail'),
+            'by' => auth()->user()->name,
+        ])->render();
+
+        $tempDir = storage_path('app/mpdf');
+        if (! is_dir($tempDir)) {
+            mkdir($tempDir, 0775, true);
+        }
+        $fontDirs = (new \Mpdf\Config\ConfigVariables())->getDefaults()['fontDir'];
+        $fontData = (new \Mpdf\Config\FontVariables())->getDefaults()['fontdata'];
+        $pdf = new \Mpdf\Mpdf([
+            'mode' => 'utf-8', 'format' => 'A4',
+            'margin_top' => 13, 'margin_bottom' => 13, 'margin_left' => 12, 'margin_right' => 12,
+            'tempDir' => $tempDir,
+            'fontDir' => array_merge($fontDirs, [resource_path('fonts')]),
+            'fontdata' => $fontData + ['lato' => ['R' => 'Lato-Regular.ttf', 'B' => 'Lato-Bold.ttf', 'I' => 'Lato-Italic.ttf']],
+            'default_font' => 'lato',
+        ]);
+        $pdf->SetTitle('Cash Report');
+        $pdf->WriteHTML($html);
+
+        return response($pdf->Output('', \Mpdf\Output\Destination::STRING_RETURN), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="cash-report-'.$data['from'].'-to-'.$data['to'].'.pdf"',
+        ]);
     }
 
     /** Move several expenses to one wallet at once; used to sort out older entries. */

@@ -85,6 +85,7 @@ Route::middleware('auth')->group(function () {
         Route::put('/kitchen/{id}', [KitchenController::class, 'update']);
         // ---- Cash wallets: petty top-ups, transfers, cash out, and re-filing expenses ----
         Route::post('/cash', [CashController::class, 'store']);
+        Route::get('/cash/report', [CashController::class, 'report']);
         Route::post('/expenses/paid-from', [CashController::class, 'reassign']);
         Route::post('/kitchen/{id}/paid', [KitchenController::class, 'togglePaid']);
     });

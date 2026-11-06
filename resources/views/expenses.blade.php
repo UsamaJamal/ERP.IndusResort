@@ -33,6 +33,15 @@ body{margin:0;display:flex;background:var(--bg);font-family:Lato,Arial,sans-seri
 .cash-head h3{margin:0;font-size:12px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:#6b7671}
 .stat-row+.cash-head{margin-top:18px}
 .cash-btn{height:36px;border:0;border-radius:10px;background:#1e4a36;color:#fff;padding:0 14px;font:700 13px Inter,Lato,sans-serif;cursor:pointer}
+.cash-actions{display:inline-flex;gap:8px;align-items:center}
+.cash-btn.soft{display:inline-flex;align-items:center;gap:7px;background:#e6f4ea;color:#1e4a36;border:1px solid #d5e8dc}
+.cash-btn.soft svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.rp-quick{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 2px}
+.rp-quick button{height:34px;border:1px solid #d5e8dc;border-radius:9px;background:#f4f8f5;color:#1e4a36;padding:0 12px;font:700 12.5px Inter,Lato,sans-serif;cursor:pointer}
+.rp-quick button.on{background:#1e4a36;border-color:#1e4a36;color:#fff}
+.modal label.rp-check{display:flex;align-items:center;gap:9px;margin:14px 0 0;color:#374151;font-size:13.5px;cursor:pointer}
+.modal label.rp-check input{width:16px;height:16px;padding:0;accent-color:#2f6b4f}
+.mx-report{display:block;width:100%;height:42px;margin:0 0 12px;border:1px solid #d5e8dc;border-radius:12px;background:#e6f4ea;color:#1e4a36;font:700 14px Lato,Arial,sans-serif;cursor:pointer}
 .lg-wallet{display:inline-block;margin-top:3px;font-size:11px;font-weight:700;border-radius:6px;padding:2px 7px}
 .lg-wallet.income{background:#e6f4ea;color:#2f6b4f}.lg-wallet.petty{background:#fdf1d3;color:#7a5400}
 .lg-type.cash{background:#dfebfb;color:#1e4f8f}
@@ -245,6 +254,7 @@ footer{display:flex;justify-content:space-between;align-items:center;padding:20p
 <article class="mx-stat"><div class="h"><i><svg viewBox="0 0 24 24"><path d="M6 3v7a2 2 0 0 0 4 0V3M8 12v9M17 3c-2 0-3.5 2.2-3.5 5.5S15 13 17 13v8"/></svg></i>Kitchen Sales</div><div class="v">PKR {{ number_format($kitchenIncome) }}</div><div class="d">paid orders</div></article>
 <article class="mx-stat {{ $kitchenIncome - $kitchenCosts < 0 ? 'down' : '' }}"><div class="h"><i><svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8M15 7h6v6"/></svg></i>Kitchen Profit</div><div class="v">PKR {{ number_format($kitchenIncome - $kitchenCosts) }}</div><div class="d">after PKR {{ number_format($kitchenCosts) }} costs</div></article>
 </div>
+@if(auth()->user()->role !== 'staff')<button type="button" class="mx-report" onclick="openCashReport()">Export Cash Report</button>@endif
 {{-- Earnings chart disabled on request.
 <section class="mx-card"><div class="mx-h"><h2>Earnings Overview</h2><span class="mx-year"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg>This Year<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></div><div class="mx-leg"><span><i style="background:#2f6b4f"></i>Income</span><span><i style="background:#bcd9c8"></i>Expense</span></div><div class="mx-chart"><div class="mx-y" id="mxY"></div><div class="mx-plot" id="mxPlot"><div class="zero"></div></div></div><div class="mx-x" id="mxX"></div></section>
 --}}
@@ -273,7 +283,7 @@ footer{display:flex;justify-content:space-between;align-items:center;padding:20p
     <div class="fin-top">
         <div class="fin-left">
             {{-- Where the cash physically is. Separate from profit below: owner top-ups raise cash, not income. --}}
-            <div class="cash-head"><h3>Cash</h3>@if(auth()->user()->role !== 'staff')<button type="button" class="cash-btn" onclick="openCashEntry()">+ Cash Entry</button>@endif</div>
+            <div class="cash-head"><h3>Cash</h3>@if(auth()->user()->role !== 'staff')<span class="cash-actions"><button type="button" class="cash-btn soft" onclick="openCashReport()"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 21h16"/></svg>Export Report</button><button type="button" class="cash-btn" onclick="openCashEntry()">+ Cash Entry</button></span>@endif</div>
             <div class="stat-row cash-row">
                 <div class="scard sc-click" data-filter="" title="Show these records below">
                     <div class="sc-head"><span class="sc-ic"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></svg></span>Cash in Hand</div>
@@ -476,6 +486,20 @@ function bulkSync(){const bar=document.getElementById('lgBulk');if(!bar)return;b
 function bulkClear(){PICKED.clear();applyFilters();}
 function bulkPaidFrom(w){if(!PICKED.size)return;const f=document.createElement('form');f.method='POST';f.action='/expenses/paid-from';f.style.display='none';let h='<input name="_token" value="'+document.querySelector('meta[name=csrf-token]').content+'"><input name="paid_from" value="'+w+'">';PICKED.forEach(id=>h+='<input name="ids[]" value="'+id+'">');f.innerHTML=h;document.body.appendChild(f);f.submit();}
 
+// ---- Cash report modal: quick ranges fill the two dates ----
+const RP_FIRST=@json(optional(\App\Support\Cashbook::entries()->first())['date'] ?? now()->toDateString());
+function rpRange(kind){const pad=n=>String(n).padStart(2,'0'), iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  const now=new Date(); let a,b=now;
+  if(kind==='month')a=new Date(now.getFullYear(),now.getMonth(),1);
+  else if(kind==='last'){a=new Date(now.getFullYear(),now.getMonth()-1,1);b=new Date(now.getFullYear(),now.getMonth(),0);}
+  else if(kind==='year')a=new Date(now.getFullYear(),0,1);
+  else{document.getElementById('rpFrom').value=RP_FIRST;document.getElementById('rpTo').value=iso(now);return;}
+  document.getElementById('rpFrom').value=iso(a);document.getElementById('rpTo').value=iso(b);}
+function rpPick(kind){rpRange(kind);document.querySelectorAll('#rpQuick button').forEach(x=>x.classList.toggle('on',x.dataset.range===kind));}
+function openCashReport(){rpPick('month');openModal('cashReportModal');}
+document.addEventListener('click',e=>{const b=e.target.closest('#rpQuick button');if(b)rpPick(b.dataset.range);});
+document.addEventListener('input',e=>{if(e.target.id==='rpFrom'||e.target.id==='rpTo')document.querySelectorAll('#rpQuick button').forEach(x=>x.classList.remove('on'));});
+
 // ---- Cash entry modal ----
 const rcIco='<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 14h8M8 18h5"/></svg>';
 function cashReceiptPicked(input){const f=input.files[0];if(f&&f.size>5*1024*1024){alert('The receipt must be 5 MB or smaller.');input.value='';}document.getElementById('cashReceiptName').textContent=input.files[0]?input.files[0].name:'No file attached';}
@@ -578,6 +602,21 @@ applyFilters();
 <label>Receipt <span style="color:#9ca3af;font-weight:400">(optional: transfer screenshot, slip or PDF)</span></label>
 <div class="cash-rc"><label class="cash-rc-btn" for="cashReceipt"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>Attach receipt</label><input type="file" name="receipt" id="cashReceipt" accept="image/jpeg,image/png,image/webp,application/pdf" onchange="cashReceiptPicked(this)"><span id="cashReceiptName">No file attached</span></div>
 <div class="mact"><button type="button" class="mbtn cancel" onclick="closeModal('cashModal')">Cancel</button><button class="mbtn save">Save Entry</button></div>
+</form></div></div>
+{{-- Cash report: a statement for any date range, downloaded as a PDF --}}
+<div class="modal-ov" id="cashReportModal"><div class="modal"><h3>Export Cash Report</h3>
+<form method="GET" id="cashReportForm" action="{{ url('/cash/report') }}" target="_blank">
+<label>Period</label>
+<div class="rp-quick" id="rpQuick">
+  <button type="button" data-range="month">This Month</button>
+  <button type="button" data-range="last">Last Month</button>
+  <button type="button" data-range="year">This Year</button>
+  <button type="button" data-range="all">All Time</button>
+</div>
+<div class="mrow"><div><label>From</label><input type="date" name="from" id="rpFrom" required></div><div><label>To</label><input type="date" name="to" id="rpTo" required></div></div>
+<label class="rp-check"><input type="checkbox" name="detail" value="1" checked> Include the full list of entries</label>
+<p style="margin:10px 0 0;font-size:12.5px;color:#8b948f">The report shows opening and closing balances for Income Cash and Petty Cash, where money came from, where it went, and profit for the period.</p>
+<div class="mact"><button type="button" class="mbtn cancel" onclick="closeModal('cashReportModal')">Cancel</button><button type="submit" class="mbtn save" onclick="setTimeout(()=>closeModal('cashReportModal'),300)">Download PDF</button></div>
 </form></div></div>
 <div class="modal-ov" id="expenseReportModal"><div class="modal"><h3>Export Expense PDF</h3><form id="expenseReportForm" method="GET" action="{{ url('/expenses/export/pdf') }}" onsubmit="return submitExpenseReport(this)">
 <p style="margin:10px 0 14px;color:#687076;font-size:13px">Date-wise Kitchen aur Room expenses report download karein.</p>
