@@ -138,6 +138,7 @@ document.addEventListener('click',event=>{const button=event.target.closest('.to
 window.SORT={};
 function sortCol(key,f,apply){const st=SORT[key]=SORT[key]||{};if(st.f===f)st.a=!st.a;else{st.f=f;st.a=true;}apply();}
 function sortList(key,list){const st=SORT[key];if(!st||!st.f)return list;return [...list].sort((a,b)=>{let x=a[st.f],y=b[st.f];const nx=parseFloat(x),ny=parseFloat(y);if(!isNaN(nx)&&!isNaN(ny)&&String(x).match(/^[$]?[\d.]+/)&&String(y).match(/^[$]?[\d.]+/))return (nx-ny)*(st.a?1:-1);return String(x==null?'':x).localeCompare(String(y==null?'':y))*(st.a?1:-1);});}
-document.addEventListener('click',e=>{if(e.target.classList&&e.target.classList.contains('modal-ov'))e.target.classList.remove('open')});
+/* A modal marked data-sticky holds a long form: a stray click outside must not throw the typing away, so only its Cancel button closes it. */
+document.addEventListener('click',e=>{if(e.target.classList&&e.target.classList.contains('modal-ov')&&!e.target.hasAttribute('data-sticky'))e.target.classList.remove('open')});
 setTimeout(()=>{const fl=document.getElementById('flash');if(fl)fl.remove()},2500);
 </script>

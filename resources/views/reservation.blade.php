@@ -341,7 +341,7 @@ applyFilters();
 (function(){const q=new URLSearchParams(location.search).get('q');if(q){['fSearch','mSearch'].forEach(i=>{const el=document.getElementById(i);if(el)el.value=q;});applyFilters();}})();
 (function(){const id=new URLSearchParams(location.search).get('edit');if(id&&typeof openBookingEditor==='function')openBookingEditor(+id);})();
 </script>
-<div class="modal-ov" id="addBooking"><div class="modal wide"><h3 id="bookingModalTitle">Add Reservation</h3><form id="bookingForm" method="POST" action="{{ url('/bookings') }}" enctype="multipart/form-data">@csrf<input type="hidden" name="_method" id="bookingMethod" value="">
+<div class="modal-ov" id="addBooking" data-sticky><div class="modal wide"><h3 id="bookingModalTitle">Add Reservation</h3><form id="bookingForm" method="POST" action="{{ url('/bookings') }}" enctype="multipart/form-data">@csrf<input type="hidden" name="_method" id="bookingMethod" value="">
 @if($errors->any())<div style="margin:0 0 12px;padding:10px 12px;border-radius:9px;background:#fff0f0;color:#b3352f;font-size:13px">Please check the highlighted details below. @foreach($errors->all() as $error)<div style="margin-top:3px">• {{ $error }}</div>@endforeach</div>@endif
 <div class="msec">Guest details</div>
 <div class="mrow"><div><label>Guest Name</label><input name="guest_name" required></div><div><label>CNIC</label><input name="cnic" inputmode="numeric" maxlength="20" placeholder="12345-1234567-1"></div></div>
