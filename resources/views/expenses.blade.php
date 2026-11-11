@@ -40,7 +40,14 @@ body{margin:0;display:flex;background:var(--bg);font-family:Lato,Arial,sans-seri
 .fp-custom input[type=date]{height:42px;padding:0 10px;border:1px solid #dfe8e2;border-radius:10px;background:#fff;font:500 13px Inter,Lato,sans-serif;color:#26362c}
 .fp-custom span{color:#7a867f;font-size:13px}
 .fp-custom button{height:42px;padding:0 16px;border:0;border-radius:10px;background:#1e4a36;color:#fff;font:700 13px Inter,Lato,sans-serif;cursor:pointer}
-.fp-label{margin-left:auto;color:#68756d;font-size:13px}.fp-label b{color:#1f3d2e}
+.fp-label{margin-left:auto;color:#68756d;font-size:13px;white-space:nowrap}.fp-label b{color:#1f3d2e}
+/* Desktop: one row with the page title; the custom dates drop onto their own line below. */
+.fin-head{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:12px 20px;margin:20px var(--gutter,24px) 0}
+.fin-head .pg-head{margin:0}
+.fin-head .fin-period{flex:1 1 auto;justify-content:flex-end;margin:0}
+.fin-head .fp-label{order:1;margin-left:0;padding:0 2px}
+.fin-head .fp-tabs{order:2;box-shadow:0 1px 2px rgba(16,40,28,.05)}
+.fin-head .fp-custom{order:3;flex-basis:100%;justify-content:flex-end}
 @media(max-width:768px){.fin-period{margin:0 0 12px;gap:8px}.fp-tabs{display:flex;width:100%}.fp-tabs a,.fp-tabs button{flex:1;justify-content:center;padding:0 6px;font-size:12.5px}.fp-custom{width:100%}.fin-period.open .fp-custom{display:flex}.fp-custom input[type=date]{flex:1;min-width:0}.fp-label{margin-left:0;width:100%;font-size:12.5px}}
 .cash-head{display:flex;align-items:center;justify-content:space-between;margin:0 2px 10px}
 .cash-head h3{margin:0;font-size:12px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:#6b7671}
@@ -295,8 +302,11 @@ footer{display:flex;justify-content:space-between;align-items:center;padding:20p
             </div>
         </div>
     </header>
+{{-- Title on the left, the period on the right, both inside the page gutter. --}}
+<div class="fin-head">
 @include('partials.page-head', ['pgTitle'=>'Financials','pgSub'=>'Income, expenses and transactions.'])
 @include('partials.fin-period')
+</div>
     <div class="fin-top">
         <div class="fin-left">
             {{-- Where the cash physically is. Separate from profit below: owner top-ups raise cash, not income. --}}
