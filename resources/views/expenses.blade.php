@@ -29,6 +29,19 @@ body{margin:0;display:flex;background:var(--bg);font-family:Lato,Arial,sans-seri
 .fin-left{display:grid;gap:20px;align-content:start}
 .stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
 .fin-row2{margin-top:16px}
+/* Period selector at the top of Financials */
+.fin-period{display:flex;align-items:center;flex-wrap:wrap;gap:10px 14px;margin:0 0 18px}
+.fp-tabs{display:inline-flex;gap:4px;padding:4px;border:1px solid #dfe8e2;border-radius:12px;background:#fff}
+.fp-tabs a,.fp-tabs button{display:inline-flex;align-items:center;height:34px;padding:0 14px;border:0;border-radius:9px;background:none;color:#4b5a52;font:700 13px Inter,Lato,sans-serif;text-decoration:none;cursor:pointer;white-space:nowrap}
+.fp-tabs a:hover,.fp-tabs button:hover{background:#eef5f0;color:#1e4a36}
+.fp-tabs a.on,.fp-tabs button.on{background:#1e4a36;color:#fff}
+.fp-custom{display:none;align-items:center;gap:8px}
+.fin-period.open .fp-custom{display:inline-flex}
+.fp-custom input[type=date]{height:42px;padding:0 10px;border:1px solid #dfe8e2;border-radius:10px;background:#fff;font:500 13px Inter,Lato,sans-serif;color:#26362c}
+.fp-custom span{color:#7a867f;font-size:13px}
+.fp-custom button{height:42px;padding:0 16px;border:0;border-radius:10px;background:#1e4a36;color:#fff;font:700 13px Inter,Lato,sans-serif;cursor:pointer}
+.fp-label{margin-left:auto;color:#68756d;font-size:13px}.fp-label b{color:#1f3d2e}
+@media(max-width:768px){.fin-period{margin:0 0 12px;gap:8px}.fp-tabs{display:flex;width:100%}.fp-tabs a,.fp-tabs button{flex:1;justify-content:center;padding:0 6px;font-size:12.5px}.fp-custom{width:100%}.fin-period.open .fp-custom{display:flex}.fp-custom input[type=date]{flex:1;min-width:0}.fp-label{margin-left:0;width:100%;font-size:12.5px}}
 .cash-head{display:flex;align-items:center;justify-content:space-between;margin:0 2px 10px}
 .cash-head h3{margin:0;font-size:12px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:#6b7671}
 .stat-row+.cash-head{margin-top:18px}
@@ -245,13 +258,14 @@ footer{display:flex;justify-content:space-between;align-items:center;padding:20p
 .mx-row .chev{width:18px;height:18px;fill:none;stroke:#333;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 .mx-card .ms-pager{padding-top:10px}
 }</style>
+@include('partials.fin-period')
 <div class="mx-stats">
-<article class="mx-stat {{ $cash['total'] < 0 ? 'down' : '' }}"><div class="h"><i><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></svg></i>Cash in Hand</div><div class="v">PKR {{ number_format($cash['total']) }}</div><div class="d">income plus petty</div></article>
-<article class="mx-stat {{ $cash['income'] < 0 ? 'down' : '' }}"><div class="h"><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v10"/></svg></i>Income Cash</div><div class="v">PKR {{ number_format($cash['income']) }}</div><div class="d">from bookings and kitchen</div></article>
-<article class="mx-stat {{ $cash['petty'] < 0 ? 'down' : '' }}"><div class="h"><i><svg viewBox="0 0 24 24"><path d="M20 7H5a2 2 0 0 1 0-4h13v4M3 5v13a2 2 0 0 0 2 2h15v-4"/></svg></i>Petty Cash</div><div class="v">PKR {{ number_format($cash['petty']) }}</div><div class="d">sent by the owner</div></article>
-<article class="mx-stat {{ $balanceChange < 0 ? 'down' : '' }}"><div class="h"><i><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M16 12h2"/></svg></i>Net Profit</div><div class="v">PKR {{ number_format($totalBalance) }}</div><div class="d"><b>{!! $balanceChange < 0 ? '<svg viewBox="0 0 24 24"><path d="M7 7l10 10M15 17H7V9"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></svg>' !!}{{ number_format(abs($balanceChange), 2) }}%</b>from last week</div></article>
-<article class="mx-stat {{ $incomeChange < 0 ? 'down' : '' }}"><div class="h"><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 14c0 1 1 2 2.5 2s2.5-.7 2.5-2-1-1.7-2.5-2-2.5-1-2.5-2 1-2 2.5-2 2.5 1 2.5 2"/></svg></i>Total Income</div><div class="v">PKR {{ number_format($totalIncome) }}</div><div class="d"><b>{!! $incomeChange < 0 ? '<svg viewBox="0 0 24 24"><path d="M7 7l10 10M15 17H7V9"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></svg>' !!}{{ number_format(abs($incomeChange), 2) }}%</b>from last week</div></article>
-<article class="mx-stat {{ $expenseChange < 0 ? 'down' : '' }}"><div class="h"><i><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg></i>Total Expenses</div><div class="v">PKR {{ number_format($totalExpense) }}</div><div class="d"><b>{!! $expenseChange < 0 ? '<svg viewBox="0 0 24 24"><path d="M7 7l10 10M15 17H7V9"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></svg>' !!}{{ number_format(abs($expenseChange), 2) }}%</b>from last week</div></article>
+<article class="mx-stat {{ $cashView['total'] < 0 ? 'down' : '' }}"><div class="h"><i><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></svg></i>Cash in Hand</div><div class="v">PKR {{ number_format($cashView['total']) }}</div><div class="d">{{ $cashView['as_of'] ? 'closing on '.$cashView['as_of'] : 'income plus petty, now' }}</div></article>
+<article class="mx-stat {{ $cashView['income'] < 0 ? 'down' : '' }}"><div class="h"><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v10"/></svg></i>Income Cash</div><div class="v">PKR {{ number_format($cashView['income']) }}</div><div class="d">from bookings and kitchen</div></article>
+<article class="mx-stat {{ $cashView['petty'] < 0 ? 'down' : '' }}"><div class="h"><i><svg viewBox="0 0 24 24"><path d="M20 7H5a2 2 0 0 1 0-4h13v4M3 5v13a2 2 0 0 0 2 2h15v-4"/></svg></i>Petty Cash</div><div class="v">PKR {{ number_format($cashView['petty']) }}</div><div class="d">sent by the owner</div></article>
+<article class="mx-stat {{ $balanceChange < 0 ? 'down' : '' }}"><div class="h"><i><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M16 12h2"/></svg></i>Net Profit</div><div class="v">PKR {{ number_format($totalBalance) }}</div><div class="d">@if($balanceChange === null)all time @else<b>{!! $balanceChange < 0 ? '<svg viewBox="0 0 24 24"><path d="M7 7l10 10M15 17H7V9"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></svg>' !!}{{ number_format(abs($balanceChange), 2) }}%</b>{{ $period['compare'] }}@endif</div></article>
+<article class="mx-stat {{ $incomeChange < 0 ? 'down' : '' }}"><div class="h"><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 14c0 1 1 2 2.5 2s2.5-.7 2.5-2-1-1.7-2.5-2-2.5-1-2.5-2 1-2 2.5-2 2.5 1 2.5 2"/></svg></i>Total Income</div><div class="v">PKR {{ number_format($totalIncome) }}</div><div class="d">@if($incomeChange === null)all time @else<b>{!! $incomeChange < 0 ? '<svg viewBox="0 0 24 24"><path d="M7 7l10 10M15 17H7V9"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></svg>' !!}{{ number_format(abs($incomeChange), 2) }}%</b>{{ $period['compare'] }}@endif</div></article>
+<article class="mx-stat {{ $expenseChange < 0 ? 'down' : '' }}"><div class="h"><i><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg></i>Total Expenses</div><div class="v">PKR {{ number_format($totalExpense) }}</div><div class="d">@if($expenseChange === null)all time @else<b>{!! $expenseChange < 0 ? '<svg viewBox="0 0 24 24"><path d="M7 7l10 10M15 17H7V9"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></svg>' !!}{{ number_format(abs($expenseChange), 2) }}%</b>{{ $period['compare'] }}@endif</div></article>
 <article class="mx-stat"><div class="h"><i><svg viewBox="0 0 24 24"><path d="M3 18V8M3 14h18v4M21 14v-3a2 2 0 0 0-2-2h-8v5"/><path d="M5 11a2.5 2.5 0 0 1 5 0"/></svg></i>Room Income</div><div class="v">PKR {{ number_format($roomIncome) }}</div><div class="d">paid bookings</div></article>
 <article class="mx-stat"><div class="h"><i><svg viewBox="0 0 24 24"><path d="M6 3v7a2 2 0 0 0 4 0V3M8 12v9M17 3c-2 0-3.5 2.2-3.5 5.5S15 13 17 13v8"/></svg></i>Kitchen Sales</div><div class="v">PKR {{ number_format($kitchenIncome) }}</div><div class="d">paid orders</div></article>
 <article class="mx-stat {{ $kitchenIncome - $kitchenCosts < 0 ? 'down' : '' }}"><div class="h"><i><svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8M15 7h6v6"/></svg></i>Kitchen Profit</div><div class="v">PKR {{ number_format($kitchenIncome - $kitchenCosts) }}</div><div class="d">after PKR {{ number_format($kitchenCosts) }} costs</div></article>
@@ -282,6 +296,7 @@ footer{display:flex;justify-content:space-between;align-items:center;padding:20p
         </div>
     </header>
 @include('partials.page-head', ['pgTitle'=>'Financials','pgSub'=>'Income, expenses and transactions.'])
+@include('partials.fin-period')
     <div class="fin-top">
         <div class="fin-left">
             {{-- Where the cash physically is. Separate from profit below: owner top-ups raise cash, not income. --}}
@@ -289,30 +304,30 @@ footer{display:flex;justify-content:space-between;align-items:center;padding:20p
             <div class="stat-row cash-row">
                 <div class="scard sc-click" data-filter="" title="Show these records below">
                     <div class="sc-head"><span class="sc-ic"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></svg></span>Cash in Hand</div>
-                    <div class="sc-body"><div class="sc-num {{ $cash['total'] < 0 ? 'neg' : '' }}">PKR {{ number_format($cash['total']) }}</div><div class="sc-sub">income cash plus petty cash</div></div>
+                    <div class="sc-body"><div class="sc-num {{ $cashView['total'] < 0 ? 'neg' : '' }}">PKR {{ number_format($cashView['total']) }}</div><div class="sc-sub">{{ $cashView['as_of'] ? 'closing balance on '.$cashView['as_of'] : 'income cash plus petty cash, right now' }}</div></div>
                 </div>
                 <div class="scard sc-click" data-filter="cash_income" title="Show these records below">
                     <div class="sc-head"><span class="sc-ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 14c0 1 1 2 2.5 2s2.5-.7 2.5-2-1-1.7-2.5-2-2.5-1-2.5-2 1-2 2.5-2 2.5 1 2.5 2"/></svg></span>Income Cash</div>
-                    <div class="sc-body"><div class="sc-num {{ $cash['income'] < 0 ? 'neg' : '' }}">PKR {{ number_format($cash['income']) }}</div><div class="sc-sub">PKR {{ number_format($cash['received']) }} received, PKR {{ number_format($cash['expenses_income'] + $cash['transfers'] + $cash['out_income']) }} out</div></div>
+                    <div class="sc-body"><div class="sc-num {{ $cashView['income'] < 0 ? 'neg' : '' }}">PKR {{ number_format($cashView['income']) }}</div><div class="sc-sub">PKR {{ number_format($cashView['income_in']) }} received, PKR {{ number_format($cashView['income_out']) }} out {{ $period['word'] }}</div></div>
                 </div>
                 <div class="scard sc-click" data-filter="cash_petty" title="Show these records below">
                     <div class="sc-head"><span class="sc-ic amber"><svg viewBox="0 0 24 24"><path d="M20 7H5a2 2 0 0 1 0-4h13v4M3 5v13a2 2 0 0 0 2 2h15v-4"/><path d="M20 12h-4a2 2 0 0 0 0 4h4z"/></svg></span>Petty Cash</div>
-                    <div class="sc-body"><div class="sc-num {{ $cash['petty'] < 0 ? 'neg' : '' }}">PKR {{ number_format($cash['petty']) }}</div><div class="sc-sub">PKR {{ number_format($cash['topups'] + $cash['transfers']) }} added, PKR {{ number_format($cash['expenses_petty'] + $cash['out_petty']) }} spent</div></div>
+                    <div class="sc-body"><div class="sc-num {{ $cashView['petty'] < 0 ? 'neg' : '' }}">PKR {{ number_format($cashView['petty']) }}</div><div class="sc-sub">PKR {{ number_format($cashView['petty_in']) }} added, PKR {{ number_format($cashView['petty_out']) }} spent {{ $period['word'] }}</div></div>
                 </div>
             </div>
             <div class="cash-head"><h3>Profit</h3></div>
             <div class="stat-row">
                 <div class="scard sc-click" data-filter="pl" title="Show these records below">
                     <div class="sc-head"><span class="sc-ic"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M16 12h2"/></svg></span>Net Profit<span class="dots">···</span></div>
-                    <div class="sc-body"><div class="sc-num">PKR {{ number_format($totalBalance) }}</div><div class="sc-delta"><span class="p {{ $balanceChange < 0 ? 'down' : '' }}">{{ $balanceChange < 0 ? '↘' : '↗' }} {{ number_format(abs($balanceChange), 2) }}%</span><small>from last week</small></div></div>
+                    <div class="sc-body"><div class="sc-num">PKR {{ number_format($totalBalance) }}</div><div class="sc-delta">@if($balanceChange === null)<small>all time</small>@else<span class="p {{ $balanceChange < 0 ? 'down' : '' }}">{{ $balanceChange < 0 ? '↘' : '↗' }} {{ number_format(abs($balanceChange), 2) }}%</span><small>{{ $period['compare'] }}</small>@endif</div></div>
                 </div>
                 <div class="scard sc-click" data-filter="income" title="Show these records below">
                     <div class="sc-head"><span class="sc-ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 14c0 1 1 2 2.5 2s2.5-.7 2.5-2-1-1.7-2.5-2-2.5-1-2.5-2 1-2 2.5-2 2.5 1 2.5 2"/></svg></span>Total Income<span class="dots">···</span></div>
-                    <div class="sc-body"><div class="sc-num">PKR {{ number_format($totalIncome) }}</div><div class="sc-delta"><span class="p {{ $incomeChange < 0 ? 'down' : '' }}">{{ $incomeChange < 0 ? '↘' : '↗' }} {{ number_format(abs($incomeChange), 2) }}%</span><small>from last week</small></div></div>
+                    <div class="sc-body"><div class="sc-num">PKR {{ number_format($totalIncome) }}</div><div class="sc-delta">@if($incomeChange === null)<small>all time</small>@else<span class="p {{ $incomeChange < 0 ? 'down' : '' }}">{{ $incomeChange < 0 ? '↘' : '↗' }} {{ number_format(abs($incomeChange), 2) }}%</span><small>{{ $period['compare'] }}</small>@endif</div></div>
                 </div>
                 <div class="scard sc-click" data-filter="expense" title="Show these records below">
                     <div class="sc-head"><span class="sc-ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8l-4 4 4 4"/></svg></span>Total Expenses<span class="dots">···</span></div>
-                    <div class="sc-body"><div class="sc-num">PKR {{ number_format($totalExpense) }}</div><div class="sc-delta"><span class="p {{ $expenseChange < 0 ? 'down' : '' }}">{{ $expenseChange < 0 ? '↘' : '↗' }} {{ number_format(abs($expenseChange), 2) }}%</span><small>from last week</small></div></div>
+                    <div class="sc-body"><div class="sc-num">PKR {{ number_format($totalExpense) }}</div><div class="sc-delta">@if($expenseChange === null)<small>all time</small>@else<span class="p {{ $expenseChange < 0 ? 'down' : '' }}">{{ $expenseChange < 0 ? '↘' : '↗' }} {{ number_format(abs($expenseChange), 2) }}%</span><small>{{ $period['compare'] }}</small>@endif</div></div>
                 </div>
             </div>
             {{-- Where the money comes from, and how the restaurant is doing on its own. --}}
@@ -498,7 +513,11 @@ function rpRange(kind){const pad=n=>String(n).padStart(2,'0'), iso=d=>d.getFullY
   else{document.getElementById('rpFrom').value=RP_FIRST;document.getElementById('rpTo').value=iso(now);return;}
   document.getElementById('rpFrom').value=iso(a);document.getElementById('rpTo').value=iso(b);}
 function rpPick(kind){rpRange(kind);document.querySelectorAll('#rpQuick button').forEach(x=>x.classList.toggle('on',x.dataset.range===kind));}
-function openCashReport(){rpPick('month');openModal('cashReportModal');}
+const FIN_PERIOD=@json(['key' => $period['key'], 'from' => $period['from'], 'to' => $period['to']]);
+function openCashReport(){const k=FIN_PERIOD.key;
+  if(k==='custom'){rpPick('');document.getElementById('rpFrom').value=FIN_PERIOD.from;document.getElementById('rpTo').value=FIN_PERIOD.to;}
+  else rpPick(k==='last_month'?'last':k==='all'?'all':'month');
+  openModal('cashReportModal');}
 document.addEventListener('click',e=>{const b=e.target.closest('#rpQuick button');if(b)rpPick(b.dataset.range);});
 document.addEventListener('input',e=>{if(e.target.id==='rpFrom'||e.target.id==='rpTo')document.querySelectorAll('#rpQuick button').forEach(x=>x.classList.remove('on'));});
 

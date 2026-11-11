@@ -767,30 +767,103 @@ class PageController extends Controller
         'Other' => ['Miscellaneous', 'Donations', 'Petty Cash'],
     ];
 
-    public function expenses()
+    /**
+     * The date range the Financials page is showing: this month unless the address asks
+     * for last month, all time or a custom range. `from`/`to` are null for all time.
+     */
+    private function financePeriod(Request $r): array
     {
-        $expenses = Expense::with('attachments')->orderBy('id')->get();
+        $isDate = fn ($v) => is_string($v) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $v) && strtotime($v) !== false;
+        $key = in_array($r->query('period'), ['this_month', 'last_month', 'all', 'custom'], true) ? $r->query('period') : 'this_month';
+        if ($key === 'custom' && ! ($isDate($r->query('from')) && $isDate($r->query('to')))) {
+            $key = 'this_month';
+        }
+
+        $fmt = fn ($d) => \Carbon\Carbon::parse($d)->format('j M Y');
+        if ($key === 'all') {
+            return ['key' => 'all', 'from' => null, 'to' => null, 'prevFrom' => null, 'prevTo' => null,
+                'label' => 'All time', 'word' => '', 'compare' => null];
+        }
+        if ($key === 'custom') {
+            [$from, $to] = [$r->query('from'), $r->query('to')];
+            if ($to < $from) {
+                [$from, $to] = [$to, $from];
+            }
+            $days = \Carbon\Carbon::parse($from)->diffInDays(\Carbon\Carbon::parse($to)) + 1;
+            $prevTo = \Carbon\Carbon::parse($from)->subDay();
+
+            return ['key' => 'custom', 'from' => $from, 'to' => $to,
+                'prevFrom' => (clone $prevTo)->subDays($days - 1)->toDateString(), 'prevTo' => $prevTo->toDateString(),
+                'label' => $fmt($from).' – '.$fmt($to), 'word' => 'in this range',
+                'compare' => 'from the '.$days.' '.($days === 1 ? 'day' : 'days').' before'];
+        }
+        $start = $key === 'last_month' ? now()->startOfMonth()->subMonthNoOverflow() : now()->startOfMonth();
+        $prev = (clone $start)->subMonthNoOverflow();
+
+        return ['key' => $key, 'from' => $start->toDateString(), 'to' => (clone $start)->endOfMonth()->toDateString(),
+            'prevFrom' => $prev->toDateString(), 'prevTo' => (clone $prev)->endOfMonth()->toDateString(),
+            'label' => $start->format('F Y'), 'word' => $key === 'last_month' ? 'last month' : 'this month',
+            'compare' => 'from '.$prev->format('F')];
+    }
+
+    public function expenses(Request $request)
+    {
+        $period = $this->financePeriod($request);
+        [$from, $to] = [$period['from'], $period['to']];
+        // Every record is dated the way the cash report dates it: an expense by its own
+        // date, a booking by check-in, an order by its order date, each falling back to
+        // the day it was entered.
+        $day = fn ($value, $fallback = null) => ($d = substr((string) ($value ?: $fallback), 0, 10)) !== '' ? $d : null;
+        $within = fn (?string $d, $f, $t) => $f === null || ($d !== null && $d >= $f && $d <= $t);
+
+        $allExpenses = Expense::with('attachments')->orderBy('id')->get();
+        $allBookings = Booking::with('attachments')->where('invoice_status', 'paid')->orderByDesc('id')->get();
+        $allSales = KitchenOrder::sales()->with('items', 'attachments')->orderByDesc('id')->get();
+        $expenseDay = fn ($e) => $day($e->date, $e->created_at);
+        $bookingDay = fn ($b) => $day($b->check_in, $b->created_at);
+        $saleDay = fn ($o) => $day($o->order_date, $o->created_at);
+
+        $expenses = $allExpenses->filter(fn ($e) => $within($expenseDay($e), $from, $to))->values();
+        $paidBookings = $allBookings->filter(fn ($b) => $within($bookingDay($b), $from, $to))->values();
+        $sales = $allSales->filter(fn ($o) => $within($saleDay($o), $from, $to))->values();
+
         $palette = ['Salaries and Wages'=>'#d2f3e4','Utilities'=>'#b6d8cb','Maintenance and Repairs'=>'#cbd877','Supplies'=>'#e8fb82','Marketing and Advertising'=>'#f4fac3','Miscellaneous'=>'#eefbf4'];
         $byCat = $expenses->groupBy('category')->map(function ($g) {
             return $g->sum('amount');
         })->sortDesc();
         $totalExpense = (int) $expenses->sum('amount');
         // Income has two sources: paid room bookings and paid restaurant orders.
-        $roomIncome = (int) Booking::where('invoice_status', 'paid')->sum('amount');
-        $kitchenIncome = (int) KitchenOrder::sales()->sum('total');
+        $roomIncome = (int) $paidBookings->sum('amount');
+        $kitchenIncome = (int) $sales->sum('total');
         $totalIncome  = $roomIncome + $kitchenIncome;
-        $weekStart = now()->startOfWeek();
-        $previousWeekStart = (clone $weekStart)->subWeek();
-        $incomeFor = fn ($from, $to) => (int) Booking::where('invoice_status', 'paid')->whereBetween('check_in', [$from, $to])->sum('amount')
-            + (int) KitchenOrder::sales()->whereBetween('order_date', [$from, $to])->sum('total');
-        $expenseFor = fn ($from, $to) => (int) Expense::whereBetween('date', [$from, $to])->sum('amount');
+
+        // The cards compare the period with the one before it; all time has nothing to compare with.
         $change = fn ($current, $previous) => $previous ? round((($current - $previous) / abs($previous)) * 100, 2) : ($current ? 100 : 0);
-        $weekEnd = now()->endOfWeek();
-        $previousWeekEnd = (clone $weekStart)->subDay();
-        $weekIncome = $incomeFor($weekStart, $weekEnd);
-        $weekExpense = $expenseFor($weekStart, $weekEnd);
-        $previousIncome = $incomeFor($previousWeekStart, $previousWeekEnd);
-        $previousExpense = $expenseFor($previousWeekStart, $previousWeekEnd);
+        $balanceChange = $incomeChange = $expenseChange = null;
+        if ($period['prevFrom'] !== null) {
+            [$pf, $pt] = [$period['prevFrom'], $period['prevTo']];
+            $previousIncome = (int) $allBookings->filter(fn ($b) => $within($bookingDay($b), $pf, $pt))->sum('amount')
+                + (int) $allSales->filter(fn ($o) => $within($saleDay($o), $pf, $pt))->sum('total');
+            $previousExpense = (int) $allExpenses->filter(fn ($e) => $within($expenseDay($e), $pf, $pt))->sum('amount');
+            $balanceChange = $change($totalIncome - $totalExpense, $previousIncome - $previousExpense);
+            $incomeChange = $change($totalIncome, $previousIncome);
+            $expenseChange = $change($totalExpense, $previousExpense);
+        }
+
+        // Cash is a balance, not a total. A period that has already ended shows what the
+        // wallets held when it closed; one that includes today shows what they hold now.
+        $cashNow = \App\Support\Cashbook::balances();
+        $statement = \App\Support\Cashbook::statement($from ?? '0000-01-01', $to ?? '9999-12-31');
+        $ended = $to !== null && $to < now()->toDateString();
+        $cashView = [
+            'total' => $ended ? $statement['total']['closing'] : $cashNow['total'],
+            'income' => $ended ? $statement['income']['closing'] : $cashNow['income'],
+            'petty' => $ended ? $statement['petty']['closing'] : $cashNow['petty'],
+            'income_in' => $statement['income']['in'], 'income_out' => $statement['income']['out'],
+            'petty_in' => $statement['petty']['in'], 'petty_out' => $statement['petty']['out'],
+            'as_of' => $ended ? \Carbon\Carbon::parse($to)->format('j M Y') : null,
+        ];
+
         $year = (int) (request('year') ?: now()->year);
         $years = collect([now()->year])->merge(Expense::selectRaw('YEAR(date) as y')->pluck('y'))->merge(Booking::selectRaw('YEAR(check_in) as y')->pluck('y'))->merge(KitchenOrder::selectRaw('YEAR(order_date) as y')->pluck('y'))->filter()->unique()->sortDesc()->values();
         $earnings = collect(range(1, 12))->map(function ($month) use ($year) {
@@ -814,7 +887,7 @@ class PageController extends Controller
             ];
         }
         $incomeCats = [];
-        $incomeByCategory = Booking::where('invoice_status', 'paid')->get()->groupBy(fn ($booking) => $booking->room_type ?: 'Other')->map(fn ($group) => $group->sum('amount'))->sortDesc();
+        $incomeByCategory = $paidBookings->groupBy(fn ($booking) => $booking->room_type ?: 'Other')->map(fn ($group) => $group->sum('amount'))->sortDesc();
         foreach ($incomeByCategory as $name => $amount) {
             $incomeCats[] = [
                 'name' => $name,
@@ -841,25 +914,25 @@ class PageController extends Controller
 
         // Income records for the ledger: every paid restaurant order and every paid booking.
         // They are listed beside the expenses so the page reads as one record of money in and out.
-        $incomeRecords = KitchenOrder::sales()->with('items', 'attachments')->orderByDesc('id')->get()->map(fn ($o) => [
+        $incomeRecords = $sales->map(fn ($o) => [
             'kind' => 'income', 'source' => 'kitchen', 'ref' => $o->id,
             'name' => $o->code.($o->customer_name ? ' · '.$o->customer_name : ''),
             'category' => 'Kitchen Sales',
             'detail' => $o->items->map(fn ($i) => $i->name.($i->quantity > 1 ? ' x'.$i->quantity : ''))->implode(', '),
             'quantity' => (int) $o->items->sum('quantity'),
             'amount' => (int) $o->total,
-            'date' => $o->order_date,
+            'date' => $saleDay($o),
             'link' => url('/kitchen'),
             'receipts' => $o->attachments,
         ])->concat(
-            Booking::with('attachments')->where('invoice_status', 'paid')->orderByDesc('id')->get()->map(fn ($b) => [
+            $paidBookings->map(fn ($b) => [
                 'kind' => 'income', 'source' => 'room', 'ref' => $b->id,
                 'name' => $b->code.' · '.$b->guest_name,
                 'category' => 'Room Booking',
                 'detail' => trim(($b->room_type ?: '').' '.($b->room_number ? 'Room '.$b->room_number : '')),
                 'quantity' => max(1, (int) preg_replace('/\D+/', '', (string) $b->duration)),
                 'amount' => (int) $b->amount,
-                'date' => $b->check_in ?: optional($b->updated_at)->toDateString(),
+                'date' => $bookingDay($b),
                 'link' => url('/guest-profile').'?id='.$b->id,
                 // Whatever was attached on the reservation opens straight from this page too.
                 'receipts' => $b->attachments,
@@ -867,7 +940,8 @@ class PageController extends Controller
         )->values();
 
         // Cash entries that are neither sales nor expenses, for the ledger.
-        $cashRecords = \App\Models\CashMovement::with('attachments')->orderByDesc('date')->orderByDesc('id')->get()->map(fn ($m) => [
+        $cashRecords = \App\Models\CashMovement::with('attachments')->orderByDesc('date')->orderByDesc('id')->get()
+            ->filter(fn ($m) => $within($day($m->date, $m->created_at), $from, $to))->values()->map(fn ($m) => [
             'kind' => 'cash', 'type' => $m->type, 'wallet' => $m->wallet, 'ref' => $m->id,
             'name' => \App\Models\CashMovement::TYPES[$m->type] ?? 'Cash entry',
             'category' => $m->type === 'topup' ? 'From owner' : ($m->type === 'transfer' ? 'Income Cash to Petty Cash' : 'From '.($m->wallet === 'petty' ? 'Petty Cash' : 'Income Cash')),
@@ -879,7 +953,9 @@ class PageController extends Controller
         ])->values();
 
         return view('expenses', [
-            'cash'          => \App\Support\Cashbook::balances(),
+            'cash'          => $cashNow,
+            'cashView'      => $cashView,
+            'period'        => $period,
             'cashRecords'   => $cashRecords,
             'roomIncome'    => $roomIncome,
             'kitchenIncome' => $kitchenIncome,
@@ -892,14 +968,15 @@ class PageController extends Controller
             'totalExpense' => $totalExpense,
             'totalIncome'  => $totalIncome,
             'totalBalance' => $totalIncome - $totalExpense,
-            'balanceChange' => $change($weekIncome - $weekExpense, $previousIncome - $previousExpense),
-            'incomeChange' => $change($weekIncome, $previousIncome),
-            'expenseChange' => $change($weekExpense, $previousExpense),
+            'balanceChange' => $balanceChange,
+            'incomeChange' => $incomeChange,
+            'expenseChange' => $expenseChange,
             'earnings' => $earnings,
             'chartMax' => $chartMax,
             'chartYear' => $year,
             'years' => $years,
-            'categoryGroups' => (function () use ($expenses) {
+            'categoryGroups' => (function () use ($allExpenses) {
+                $expenses = $allExpenses;
                 $groups = self::EXPENSE_CATEGORIES;
                 $known = collect($groups)->flatten();
                 $custom = $expenses->pluck('category')->filter()->unique()->reject(fn ($c) => $known->contains($c))->values()->all();
