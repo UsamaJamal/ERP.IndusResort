@@ -33,25 +33,25 @@ body{margin:0;display:flex;background:var(--bg);font-family:Lato,Arial,sans-seri
 .cash-total{margin-left:8px;font-size:12.5px;font-weight:600;color:#68756d;text-transform:none;letter-spacing:0}
 .lg-holds{display:flex!important;flex-wrap:wrap;gap:4px;margin-top:4px}
 .lg-hold{display:inline-block;font-style:normal;font-size:11px;font-weight:700;border-radius:6px;padding:2px 7px;white-space:nowrap}
-.lg-hold.manager{background:#e6f4ea;color:#2f6b4f}.lg-hold.owner{background:#e4ecfb;color:#1e4f8f}.lg-hold.wait{background:#fdecea;color:#b3352f}.lg-hold.settled{background:#f1f3f2;color:#5b665f}
+.lg-hold.manager{background:#e6f4ea;color:#2f6b4f}.lg-hold.owner{background:#e4ecfb;color:#1e4f8f}
 .lg-wallet.owner{background:#e4ecfb;color:#1e4f8f}
 .mx-row .lg-hold{white-space:normal;line-height:1.35}.mx-row .tx small.lg-holds{white-space:normal;overflow:visible}
 a.lg-cov{font-size:11px;font-weight:700;color:#1e4a36;text-decoration:underline;padding:2px 0}
-.own-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;padding:10px 14px;border:1px solid #f5d0cc;border-radius:12px;background:#fff6f5;color:#7a2a25;font-size:13px}
-.own-bar button{height:32px;padding:0 14px;border:0;border-radius:9px;background:#b3352f;color:#fff;font:700 12.5px Inter,Lato,sans-serif;cursor:pointer;white-space:nowrap}
-.own-wait{color:#b3352f}
-.mx-report.warn{border-color:#f5d0cc;background:#fff6f5;color:#b3352f}
-.modal .ho-intro{margin:0 0 10px;color:#68756d;font-size:13px;line-height:1.5}
+/* The multi-select dropdown of income entries on a cash-out to the owner */
+.pk-dd{position:relative}
+.modal .pk-dd-btn{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;height:44px;padding:0 14px;border:1px solid #dfe3e0;border-radius:10px;background:#fff;color:#26362c;font:500 14px Inter,Lato,sans-serif;cursor:pointer;text-align:left}
+.pk-dd-btn svg{width:16px;height:16px;flex:0 0 16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .15s}
+.pk-dd.open .pk-dd-btn{border-color:#2f6b4f}.pk-dd.open .pk-dd-btn svg{transform:rotate(180deg)}
+.pk-dd-panel{display:none;margin-top:6px;padding:10px;border:1px solid #dfe8e2;border-radius:12px;background:#f7faf8}
+.pk-dd.open .pk-dd-panel{display:block}
 .modal .ho-allrow{display:inline-flex!important;align-items:center;gap:8px;margin:0 0 8px!important;font-size:13px;font-weight:700;color:#1e4a36;cursor:pointer}
 .modal .ho-allrow input,.modal .ho-row input{width:16px!important;height:16px!important;padding:0!important;margin:0!important;accent-color:#1e4a36;flex:0 0 16px}
-.ho-list{max-height:260px;overflow:auto;border:1px solid #e1e7e2;border-radius:12px;background:#fff}
+.ho-list{max-height:210px;overflow:auto;border:1px solid #e1e7e2;border-radius:12px;background:#fff}
 .modal .ho-row{display:flex!important;align-items:center;gap:10px;margin:0!important;padding:9px 12px!important;border-bottom:1px solid #eef1ee;cursor:pointer;font-weight:400}
 .modal .ho-row:last-child{border-bottom:0}.modal .ho-row:hover{background:#f7faf8}
 .ho-tx{flex:1;min-width:0}.ho-tx b{display:block;font-size:13px;color:#1f2a24;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ho-tx small{display:block;font-size:11.5px;color:#7a867f;margin-top:1px}
 .ho-row em{font-style:normal;font-weight:800;font-size:13px;color:#1f3d2e;white-space:nowrap}
 .ho-empty{padding:18px;text-align:center;color:#7a867f;font-size:13px}
-.ho-spent{margin-top:10px;font-size:12.5px;color:#55605a}.ho-sp-h{margin-bottom:4px;font-weight:700;color:#7a5400}.ho-sp{display:flex;justify-content:space-between;gap:10px;padding:3px 0}.ho-sp small{color:#8a948e}.ho-sp em{font-style:normal;color:#b3352f;white-space:nowrap}
-.ho-sum{margin-top:12px;border:1px solid #e1e7e2;border-radius:12px;background:#f7faf8;padding:4px 14px}.ho-sum div{display:flex;justify-content:space-between;padding:7px 0;font-size:13px;color:#4b5a52}.ho-sum div+div{border-top:1px solid #e6ece8}.ho-sum .net{font-weight:800;color:#123527;font-size:14.5px}
 /* Period selector at the top of Financials */
 .fin-period{display:flex;align-items:center;flex-wrap:wrap;gap:10px 14px;margin:0 0 18px}
 .fp-tabs{display:inline-flex;gap:4px;padding:4px;border:1px solid #dfe8e2;border-radius:12px;background:#fff}
@@ -291,7 +291,7 @@ footer{display:flex;justify-content:space-between;align-items:center;padding:20p
 @include('partials.fin-period')
 <div class="mx-stats">
 <article class="mx-stat {{ $cashView['income'] < 0 ? 'down' : '' }}"><div class="h"><i><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg></i>Manager Cash</div><div class="v">PKR {{ number_format($cashView['income']) }}</div><div class="d">{{ $cashView['as_of'] ? 'closing on '.$cashView['as_of'] : 'with the manager now' }}</div></article>
-<article class="mx-stat {{ $cashView['owner'] < 0 ? 'down' : '' }}"><div class="h"><i><svg viewBox="0 0 24 24"><path d="M3 10l9-6 9 6v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg></i>Owner Cash</div><div class="v">PKR {{ number_format($cashView['owner']) }}</div><div class="d">{{ $cash['unconfirmed'] > 0 ? 'PKR '.number_format($cash['unconfirmed']).' unconfirmed' : ($cashView['as_of'] ? 'closing on '.$cashView['as_of'] : 'with the owner now') }}</div></article>
+<article class="mx-stat {{ $cashView['owner'] < 0 ? 'down' : '' }}"><div class="h"><i><svg viewBox="0 0 24 24"><path d="M3 10l9-6 9 6v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg></i>Owner Cash</div><div class="v">PKR {{ number_format($cashView['owner']) }}</div><div class="d">{{ $cashView['as_of'] ? 'closing on '.$cashView['as_of'] : 'with the owner now' }}</div></article>
 <article class="mx-stat {{ $cashView['petty'] < 0 ? 'down' : '' }}"><div class="h"><i><svg viewBox="0 0 24 24"><path d="M20 7H5a2 2 0 0 1 0-4h13v4M3 5v13a2 2 0 0 0 2 2h15v-4"/></svg></i>Petty Cash</div><div class="v">PKR {{ number_format($cashView['petty']) }}</div><div class="d">sent by the owner</div></article>
 <article class="mx-stat {{ $balanceChange < 0 ? 'down' : '' }}"><div class="h"><i><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M16 12h2"/></svg></i>Net Profit</div><div class="v">PKR {{ number_format($totalBalance) }}</div><div class="d">@if($balanceChange === null){{ $period['none'] }}@else<b>{!! $balanceChange < 0 ? '<svg viewBox="0 0 24 24"><path d="M7 7l10 10M15 17H7V9"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></svg>' !!}{{ number_format(abs($balanceChange), 2) }}%</b>{{ $period['compare'] }}@endif</div></article>
 <article class="mx-stat {{ $incomeChange < 0 ? 'down' : '' }}"><div class="h"><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 14c0 1 1 2 2.5 2s2.5-.7 2.5-2-1-1.7-2.5-2-2.5-1-2.5-2 1-2 2.5-2 2.5 1 2.5 2"/></svg></i>Total Income</div><div class="v">PKR {{ number_format($totalIncome) }}</div><div class="d">@if($incomeChange === null){{ $period['none'] }}@else<b>{!! $incomeChange < 0 ? '<svg viewBox="0 0 24 24"><path d="M7 7l10 10M15 17H7V9"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></svg>' !!}{{ number_format(abs($incomeChange), 2) }}%</b>{{ $period['compare'] }}@endif</div></article>
@@ -300,7 +300,7 @@ footer{display:flex;justify-content:space-between;align-items:center;padding:20p
 <article class="mx-stat"><div class="h"><i><svg viewBox="0 0 24 24"><path d="M6 3v7a2 2 0 0 0 4 0V3M8 12v9M17 3c-2 0-3.5 2.2-3.5 5.5S15 13 17 13v8"/></svg></i>Kitchen Sales</div><div class="v">PKR {{ number_format($kitchenIncome) }}</div><div class="d">paid orders</div></article>
 <article class="mx-stat {{ $kitchenIncome - $kitchenCosts < 0 ? 'down' : '' }}"><div class="h"><i><svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8M15 7h6v6"/></svg></i>Kitchen Profit</div><div class="v">PKR {{ number_format($kitchenIncome - $kitchenCosts) }}</div><div class="d">after PKR {{ number_format($kitchenCosts) }} costs</div></article>
 </div>
-@if(auth()->user()->role !== 'staff')<button type="button" class="mx-report" onclick="openCashReport()">Export Cash Report</button><button type="button" class="mx-report" onclick="openHandover()">Hand over to Owner</button>@if(auth()->user()->role === 'admin' && count($toConfirm))<button type="button" class="mx-report warn" onclick="openModal('confirmModal')">{{ count($toConfirm) }} to confirm for Owner</button>@endif @endif
+@if(auth()->user()->role !== 'staff')<button type="button" class="mx-report" onclick="openCashReport()">Export Cash Report</button>@endif
 {{-- Earnings chart disabled on request.
 <section class="mx-card"><div class="mx-h"><h2>Earnings Overview</h2><span class="mx-year"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg>This Year<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></div><div class="mx-leg"><span><i style="background:#2f6b4f"></i>Income</span><span><i style="background:#bcd9c8"></i>Expense</span></div><div class="mx-chart"><div class="mx-y" id="mxY"></div><div class="mx-plot" id="mxPlot"><div class="zero"></div></div></div><div class="mx-x" id="mxX"></div></section>
 --}}
@@ -333,10 +333,7 @@ footer{display:flex;justify-content:space-between;align-items:center;padding:20p
     <div class="fin-top">
         <div class="fin-left">
             {{-- Where the cash physically is. Separate from profit below: owner top-ups raise cash, not income. --}}
-            <div class="cash-head"><h3>Cash <span class="cash-total">total PKR {{ number_format($cashView['total']) }}{{ $cashView['as_of'] ? ' on '.$cashView['as_of'] : '' }}</span></h3>@if(auth()->user()->role !== 'staff')<span class="cash-actions"><button type="button" class="cash-btn soft" onclick="openCashReport()"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 21h16"/></svg>Export Report</button><button type="button" class="cash-btn soft" onclick="openHandover()"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>Hand over to Owner</button><button type="button" class="cash-btn" onclick="openCashEntry()">+ Cash Entry</button></span>@endif</div>
-            @if(auth()->user()->role === 'admin' && count($toConfirm))
-            <div class="own-bar"><span><b>{{ count($toConfirm) }} {{ count($toConfirm) === 1 ? 'entry says' : 'entries say' }} the owner received money</b> · PKR {{ number_format(collect($toConfirm)->sum('amount')) }} waiting for your confirmation</span><button type="button" onclick="openModal('confirmModal')">Review</button></div>
-            @endif
+            <div class="cash-head"><h3>Cash <span class="cash-total">total PKR {{ number_format($cashView['total']) }}{{ $cashView['as_of'] ? ' on '.$cashView['as_of'] : '' }}</span></h3>@if(auth()->user()->role !== 'staff')<span class="cash-actions"><button type="button" class="cash-btn soft" onclick="openCashReport()"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 21h16"/></svg>Export Report</button><button type="button" class="cash-btn" onclick="openCashEntry()">+ Cash Entry</button></span>@endif</div>
             <div class="stat-row cash-row">
                 <div class="scard sc-click" data-filter="cash_income" title="Show these records below">
                     <div class="sc-head"><span class="sc-ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg></span>Manager Cash in Hand</div>
@@ -344,7 +341,7 @@ footer{display:flex;justify-content:space-between;align-items:center;padding:20p
                 </div>
                 <div class="scard sc-click" data-filter="cash_owner" title="Show these records below">
                     <div class="sc-head"><span class="sc-ic"><svg viewBox="0 0 24 24"><path d="M3 10l9-6 9 6v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 20v-6h6v6"/></svg></span>Owner Cash in Hand</div>
-                    <div class="sc-body"><div class="sc-num {{ $cashView['owner'] < 0 ? 'neg' : '' }}">PKR {{ number_format($cashView['owner']) }}</div><div class="sc-sub">{{ $cashView['as_of'] ? 'on '.$cashView['as_of'].' · ' : '' }}PKR {{ number_format($cashView['owner_in']) }} received, PKR {{ number_format($cashView['owner_out']) }} out {{ $period['word'] }}@if($cash['unconfirmed'] > 0) · <b class="own-wait">PKR {{ number_format($cash['unconfirmed']) }} unconfirmed</b>@endif</div></div>
+                    <div class="sc-body"><div class="sc-num {{ $cashView['owner'] < 0 ? 'neg' : '' }}">PKR {{ number_format($cashView['owner']) }}</div><div class="sc-sub">{{ $cashView['as_of'] ? 'on '.$cashView['as_of'].' · ' : '' }}PKR {{ number_format($cashView['owner_in']) }} received, PKR {{ number_format($cashView['owner_out']) }} out {{ $period['word'] }}</div></div>
                 </div>
                 <div class="scard sc-click" data-filter="cash_petty" title="Show these records below">
                     <div class="sc-head"><span class="sc-ic amber"><svg viewBox="0 0 24 24"><path d="M20 7H5a2 2 0 0 1 0-4h13v4M3 5v13a2 2 0 0 0 2 2h15v-4"/><path d="M20 12h-4a2 2 0 0 0 0 4h4z"/></svg></span>Petty Cash</div>
@@ -482,7 +479,7 @@ const data=@json($expenses);
 const KITCHEN_CATS=@json($kitchenCats);
 const ledger=[...data.map(e=>({...e,kind:'expense'})),...@json($incomeRecords),...@json($cashRecords)];
 const CASH=@json($cash);
-const HANDOVER_PARTS=@json($handoverParts), UNSETTLED=@json($unsettled);
+const HANDOVER_PARTS=@json($handoverParts);
 const WLABEL={income:'Manager Cash',owner:'Owner Cash',petty:'Petty Cash'};
 const walletOf=e=>e.paid_from==='petty'?'petty':e.paid_from==='owner'?'owner':'income';
 // What a record does to a wallet, signed: income and cash rows carry it from the server
@@ -492,8 +489,8 @@ function walletSign(r,w){return Math.sign(walletAmt(r,w));}
 // Who holds each part of a row's money now.
 const HOLDER={manager:'With Manager',owner:'With Owner'};
 function holderBadges(r){return (r.holders||[]).map(h=>{const many=(r.holders||[]).length>1;
-  const text=(many?h.part+' '+Number(h.amount).toLocaleString()+' · ':'')+(h.unconfirmed?'Owner · unconfirmed':h.handed?'Handed to Owner'+(h.handed?' '+msDate(h.handed):''):HOLDER[h.holder]);
-  return `<i class="lg-hold ${h.unconfirmed?'wait':h.holder}">${esc(text)}</i>`;}).join('');}
+  const text=(many?h.part+' '+Number(h.amount).toLocaleString()+' · ':'')+(h.handed?'Handed to Owner '+msDate(h.handed):HOLDER[h.holder]);
+  return `<i class="lg-hold ${h.holder}">${esc(text)}</i>`;}).join('');}
 const heldBy=(r,who)=>(r.holders||[]).some(h=>h.holder===who);
 const isKitchen=r=>r.kind==='income'?r.source==='kitchen':KITCHEN_CATS.includes(r.category);
 const esc=x=>String(x==null?'':x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -505,7 +502,7 @@ function renderMobile(list){const el=document.getElementById('mRows');if(!el)ret
   if(e.kind==='income'||e.kind==='advance'){const svg=e.source==='kitchen'?'<path d="M6 3v7a2 2 0 0 0 4 0V3M8 12v9M17 3c-2 0-3.5 2.2-3.5 5.5S15 13 17 13v8"/>':'<path d="M3 18V8M3 14h18v4M21 14v-3a2 2 0 0 0-2-2h-8v5"/><path d="M5 11a2.5 2.5 0 0 1 5 0"/>';
     return `<div class="mx-row" onclick="location.href='${e.link}'"><span class="ic mint"><svg viewBox="0 0 24 24">${svg}</svg></span><div class="tx"><b>${esc(e.name)}</b><small>${esc(e.category)}</small><small>${esc(e.detail||'')} &nbsp;•&nbsp; ${msDate(e.date)}</small><small class="lg-holds">${holderBadges(e)}</small></div><div class="amt"><b style="color:#2f6b4f">+ ${msMoney(e.amount)}</b><span class="ms-pill completed">${e.kind==='advance'?'Advance':'Income'}</span>${attButton(e.receipts,'ms-pill blue att-pill',(e.receipts||[]).length>1?'Receipts':'Receipt','Receipts · '+e.name,true)}${CAN_MANAGE?`<span class="ms-pill blue" style="margin-left:4px" onclick="event.stopPropagation();location.href='${e.source==='kitchen'?'/kitchen':'/reservation'}?edit=${e.ref}'">Edit</span>`:''}</div><svg class="chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></div>`;}
   if(e.kind==='cash'){const w=window.LG_WALLET, sg=w?walletSign(e,w):(e.type==='topup'&&e.source!=='owner'?1:e.type==='cash_out'?-1:0);
-    return `<div class="mx-row" style="cursor:default"><span class="ic blue"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></svg></span><div class="tx"><b>${esc(e.name)}</b><small>${esc(e.category)}</small><small>${esc(e.detail||'')} &nbsp;•&nbsp; ${msDate(e.date)}</small></div><div class="amt"><b style="color:${sg>0?'#2f6b4f':sg<0?'#b3352f':'#1e4f8f'}">${sg>0?'+ ':sg<0?'− ':''}${msMoney(e.amount)}</b><span class="ms-pill blue">Cash</span>${attButton(e.receipts,'ms-pill blue att-pill',(e.receipts||[]).length>1?'Receipts':'Receipt','Receipts · '+e.name,true)}${e.type==='handover'?`<span class="ms-pill ${e.unconfirmed?'red':'completed'}" style="margin-left:4px" onclick="event.stopPropagation();showHandover(${e.ref})">${e.unconfirmed?'Unconfirmed':'Confirmed'}</span>`:(CAN_MANAGE?`<span class="ms-pill blue" style="margin-left:4px" onclick="event.stopPropagation();openCashEntry(${e.ref})">Edit</span>`:'')}</div><span></span></div>`;}
+    return `<div class="mx-row" style="cursor:default"><span class="ic blue"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></svg></span><div class="tx"><b>${esc(e.name)}</b><small>${esc(e.category)}</small><small>${esc(e.detail||'')} &nbsp;•&nbsp; ${msDate(e.date)}</small></div><div class="amt"><b style="color:${sg>0?'#2f6b4f':sg<0?'#b3352f':'#1e4f8f'}">${sg>0?'+ ':sg<0?'− ':''}${msMoney(e.amount)}</b><span class="ms-pill blue">Cash</span>${attButton(e.receipts,'ms-pill blue att-pill',(e.receipts||[]).length>1?'Receipts':'Receipt','Receipts · '+e.name,true)}${e.type==='handover'&&(e.covers||[]).length?`<span class="ms-pill completed" style="margin-left:4px" onclick="event.stopPropagation();showHandover(${e.ref})">${e.covers.length} ${e.covers.length===1?'entry':'entries'}</span>`:''}${CAN_MANAGE?`<span class="ms-pill blue" style="margin-left:4px" onclick="event.stopPropagation();openCashEntry(${e.ref})">Edit</span>`:''}</div><span></span></div>`;}
   const ic=mxIcons[e.category]||['gray','<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>'];
   return `<div class="mx-row" onclick="viewExpense(${e.id})"><span class="ic ${ic[0]}"><svg viewBox="0 0 24 24">${ic[1]}</svg></span><div class="tx"><b>${esc(e.name)}</b><small>${esc(e.category||'')}</small><small>${WLABEL[walletOf(e)]} &nbsp;•&nbsp; ${msDate(e.date)}</small></div><div class="amt"><b style="color:#b3352f">− ${msMoney(e.amount)}</b><span class="ms-pill red">Expense</span>${CAN_MANAGE?`<span class="ms-pill blue" style="margin-left:4px" onclick="event.stopPropagation();openExpenseEditor(${e.id})">Edit</span>`:''}</div><svg class="chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></div>`;
 }).join('')||'<div class="ms-empty">No records found</div>';}
@@ -514,10 +511,10 @@ function render(list){renderMobile(list);document.getElementById('rows').innerHT
     return `<div class="trow"><span class="lg-name"><b>${esc(e.name)}</b><small title="${esc(e.detail||'')}">${esc(e.detail||'')}</small><small class="lg-holds">${holderBadges(e)}</small></span><span>${esc(e.category)}</span><span>${adv?'—':e.quantity+' '+(e.source==='room'?(e.quantity===1?'night':'nights'):(e.quantity===1?'item':'items'))}</span><span class="lg-amt in">+ PKR ${Number(e.amount).toLocaleString()}</span><span>${fmt(e.date)}</span><span><em class="lg-type ${adv?'cash':'in'}">${adv?'Advance':'Income'}</em></span><span class="act">${attButton(e.receipts,'lg-rc',rcIco,'Receipts · '+e.name)}${CAN_MANAGE?`<a class="lg-rc lg-ed" title="${e.source==='kitchen'?'Edit order':'Edit reservation'}" href="${e.source==='kitchen'?'/kitchen':'/reservation'}?edit=${e.ref}">${edIco}</a>`:''}<a class="lg-open" href="${e.link}">${e.source==='kitchen'?'Open Kitchen':'View Booking'}</a></span></div>`;}
   if(e.kind==='cash'){
     const w=window.LG_WALLET, sg=w?walletSign(e,w):(e.type==='topup'&&e.source!=='owner'?1:e.type==='cash_out'?-1:0);
-    const ho=e.type==='handover', extra=ho?`<small class="lg-holds"><i class="lg-hold ${e.unconfirmed?'wait':'owner'}">${e.unconfirmed?'Owner has not confirmed':'Confirmed by owner'}</i>${(e.covers||[]).length?`<a href="#" class="lg-cov" onclick="event.preventDefault();showHandover(${e.ref})">${e.covers.length} ${e.covers.length===1?'entry':'entries'} covered</a>`:''}</small>`:(e.settled?'<small class="lg-holds"><i class="lg-hold settled">Settled in a handover</i></small>':'');
+    const extra=e.type==='handover'&&(e.covers||[]).length?`<small class="lg-holds"><a href="#" class="lg-cov" onclick="event.preventDefault();showHandover(${e.ref})">from ${e.covers.length} income ${e.covers.length===1?'entry':'entries'}</a></small>`:'';
     const amt=sg>0?`<span class="lg-amt in">+ PKR ${Number(e.amount).toLocaleString()}</span>`:sg<0?`<span class="lg-amt out">− PKR ${Number(e.amount).toLocaleString()}</span>`:`<span class="lg-amt move">PKR ${Number(e.amount).toLocaleString()}</span>`;
-    return `<div class="trow"><span class="lg-name"><b>${esc(e.name)}</b><small title="${esc(e.detail)}">${esc(e.detail)}</small>${extra}</span><span>${esc(e.category)}</span><span>—</span>${amt}<span>${fmt(e.date)}</span><span><em class="lg-type cash">Cash</em></span><span class="act">${attButton(e.receipts,'lg-rc',rcIco,'Receipts · '+e.name)}${CAN_MANAGE&&!ho?`<button class="eye" title="Edit cash entry" onclick="openCashEntry(${e.ref})"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>`:''}${IS_ADMIN?`<button class="eye" title="Delete cash entry" onclick="if(confirm('Delete this cash entry?'))post('/cash/${e.ref}','DELETE')">🗑</button>`:''}</span></div>`;}
-  return `<div class="trow" style="cursor:pointer" onclick="viewExpense(${e.id})"><span class="lg-name"><b>${CAN_MANAGE?`<input type="checkbox" class="lg-pick" value="${e.id}" ${PICKED.has(e.id)?'checked':''} onclick="event.stopPropagation();bulkToggle(${e.id},this.checked)">`:''}${esc(e.name)}</b><small><i class="lg-wallet ${walletOf(e)}" style="font-style:normal">${WLABEL[walletOf(e)]}</i>${e.handover_id?' <i class="lg-hold settled">Settled in a handover</i>':''}</small></span><span>${esc(e.category||'')}</span><span>${e.quantity}</span><span class="lg-amt out">− PKR ${Number(e.amount).toLocaleString()}</span><span>${fmt(e.date)}</span><span><em class="lg-type out">Expense</em></span><span class="act"><button class="eye" title="View" onclick="event.stopPropagation();viewExpense(${e.id})">${eye}</button><a class="dl" href="/expenses/${e.id}/download" onclick="event.stopPropagation()">${dl} Download</a>${editExpenseButton(e.id)}${deleteExpenseButton(e.id)}</span></div>`;
+    return `<div class="trow"><span class="lg-name"><b>${esc(e.name)}</b><small title="${esc(e.detail)}">${esc(e.detail)}</small>${extra}</span><span>${esc(e.category)}</span><span>—</span>${amt}<span>${fmt(e.date)}</span><span><em class="lg-type cash">Cash</em></span><span class="act">${attButton(e.receipts,'lg-rc',rcIco,'Receipts · '+e.name)}${CAN_MANAGE?`<button class="eye" title="Edit cash entry" onclick="openCashEntry(${e.ref})"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>`:''}${IS_ADMIN?`<button class="eye" title="Delete cash entry" onclick="if(confirm('Delete this cash entry?'))post('/cash/${e.ref}','DELETE')">🗑</button>`:''}</span></div>`;}
+  return `<div class="trow" style="cursor:pointer" onclick="viewExpense(${e.id})"><span class="lg-name"><b>${CAN_MANAGE?`<input type="checkbox" class="lg-pick" value="${e.id}" ${PICKED.has(e.id)?'checked':''} onclick="event.stopPropagation();bulkToggle(${e.id},this.checked)">`:''}${esc(e.name)}</b><small><i class="lg-wallet ${walletOf(e)}" style="font-style:normal">${WLABEL[walletOf(e)]}</i></small></span><span>${esc(e.category||'')}</span><span>${e.quantity}</span><span class="lg-amt out">− PKR ${Number(e.amount).toLocaleString()}</span><span>${fmt(e.date)}</span><span><em class="lg-type out">Expense</em></span><span class="act"><button class="eye" title="View" onclick="event.stopPropagation();viewExpense(${e.id})">${eye}</button><a class="dl" href="/expenses/${e.id}/download" onclick="event.stopPropagation()">${dl} Download</a>${editExpenseButton(e.id)}${deleteExpenseButton(e.id)}</span></div>`;
 }).join('')||'<div class="trow"><span>No results</span></div>';}
 const expensesById=Object.fromEntries(data.map(expense=>[expense.id,expense]));
 function viewExpense(id){const e=expensesById[id];if(!e)return;const files=e.attachments||[];const receipt=files.length?'<div style="margin-top:14px"><b>'+(files.length>1?files.length+' Receipts':'Receipt')+'</b>'+files.map(f=>/\.pdf$/i.test(f.path)?'':'<a href="/'+attEsc(f.path)+'" target="_blank" rel="noopener"><img src="/'+attEsc(f.path)+'" alt="Expense receipt" style="display:block;max-width:100%;max-height:320px;margin-top:8px;border:1px solid #e5e5e5;border-radius:8px"></a>').join('')+attLinks(files)+'</div>':'<div style="margin-top:14px;color:#888">No receipt uploaded.</div>';showDetail(e.name,'Category: '+(e.category||'-')+'<br>Quantity: '+e.quantity+'<br>Amount: PKR '+e.amount+'<br>Date: '+fmt(e.date)+'<br>Paid from: '+WLABEL[walletOf(e)]+'<br>Status: Completed'+receipt);}
@@ -564,28 +561,34 @@ document.addEventListener('input',e=>{if(e.target.id==='rpFrom'||e.target.id==='
 // ---- Cash entry modal ----
 const edIco='<svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
 const rcIco='<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 14h8M8 18h5"/></svg>';
-/* ---- Handover: the manager ticks the receipts whose money he is giving to the owner. ---- */
-function openHandover(){const box=document.getElementById('hoList');
-  box.innerHTML=HANDOVER_PARTS.length?HANDOVER_PARTS.map(p=>`<label class="ho-row"><input type="checkbox" name="parts[]" value="${esc(p.key)}" data-amt="${p.amount}" onchange="hoSync()"><span class="ho-tx"><b>${esc(p.label)}</b><small>${esc(p.group)} · ${esc(p.part)} · ${fmt(p.date)}</small></span><em>PKR ${Number(p.amount).toLocaleString()}</em></label>`).join(''):'<div class="ho-empty">No money is with the manager right now.</div>';
-  const spent=UNSETTLED.reduce((t,u)=>t+Number(u.amount||0),0);
-  document.getElementById('hoSpent').innerHTML=UNSETTLED.length?`<div class="ho-sp-h">Already paid out of manager cash since the last handover <b>PKR ${spent.toLocaleString()}</b></div>`+UNSETTLED.map(u=>`<div class="ho-sp"><span>${esc(u.label)} <small>${esc(u.detail||'')} · ${fmt(u.date)}</small></span><em>− PKR ${Number(u.amount).toLocaleString()}</em></div>`).join(''):'';
-  document.getElementById('hoAll').checked=false;document.getElementById('hoForm').reset();attPicked(document.getElementById('hoReceipt'),'hoReceiptName','No file attached');hoSync();openModal('handoverModal');}
-function hoAll(on){document.querySelectorAll('#hoList input[type=checkbox]').forEach(c=>c.checked=on);hoSync();}
-function hoSync(){const ticks=[...document.querySelectorAll('#hoList input:checked')];const gross=ticks.reduce((t,c)=>t+Number(c.dataset.amt),0),spent=UNSETTLED.reduce((t,u)=>t+Number(u.amount||0),0),net=gross-spent;
-  document.getElementById('hoGross').textContent='PKR '+gross.toLocaleString();document.getElementById('hoDeduct').textContent='− PKR '+spent.toLocaleString();
-  const n=document.getElementById('hoNet');n.textContent='PKR '+net.toLocaleString();n.style.color=net<0?'#b3352f':'#123527';
-  document.getElementById('hoWarn').textContent=!ticks.length?'Tick the entries whose money is being handed over.':net<0?'What the manager already paid out is more than the entries ticked. Tick more entries.':'';
-  document.getElementById('hoSave').disabled=!ticks.length||net<0;}
+/* ---- Cash out to the owner: the income entries the cash is from are picked in a dropdown. ---- */
+function cashPartsFill(){document.getElementById('cashPartsList').innerHTML=HANDOVER_PARTS.length?HANDOVER_PARTS.map(p=>`<label class="ho-row"><input type="checkbox" name="parts[]" value="${esc(p.key)}" data-amt="${p.amount}" onchange="cashPartsSync(true)"><span class="ho-tx"><b>${esc(p.label)}</b><small>${esc(p.group)} · ${esc(p.part)} · ${fmt(p.date)}</small></span><em>PKR ${Number(p.amount).toLocaleString()}</em></label>`).join(''):'<div class="ho-empty">No income is with the manager right now.</div>';document.getElementById('cashPartsAll').checked=false;}
+function cashPartsTickAll(on){document.querySelectorAll('#cashPartsList input[type=checkbox]').forEach(c=>c.checked=on);cashPartsSync(true);}
+/* Picking entries fills the amount: the entries picked, but never more than the manager holds. It can be lowered by hand. */
+function cashPartsSync(fill){const ticks=[...document.querySelectorAll('#cashPartsList input:checked')],picked=ticks.reduce((t,c)=>t+Number(c.dataset.amt),0),held=Math.max(0,Number(CASH.income)),most=Math.min(picked,held);
+  document.getElementById('cashPartsLabel').textContent=ticks.length?ticks.length+(ticks.length===1?' entry':' entries')+' selected · PKR '+picked.toLocaleString():'Select income entries';
+  const amt=document.querySelector('#cashForm [name=amount]');if(fill)amt.value=most>0?most:'';amt.max=most>0?most:'';
+  document.getElementById('cashHint').textContent='The manager gives cash to the owner. He is holding PKR '+held.toLocaleString()+(ticks.length?'; the entries picked come to PKR '+picked.toLocaleString()+(picked>held?', so at most PKR '+held.toLocaleString()+' can be handed over.':'.'):'. Pick the income entries the cash is from.');}
 function showHandover(id){const m=ledger.find(r=>r.kind==='cash'&&r.ref===id);if(!m)return;const gross=(m.covers||[]).reduce((t,c)=>t+Number(c.amount||0),0);
-  showDetail('Handover to Owner · '+fmt(m.date),`<div class="att-list">`+(m.covers||[]).map(c=>`<div class="att-chip"><a>${esc(c.label)}</a><em>${esc(c.part)} · PKR ${Number(c.amount).toLocaleString()}</em></div>`).join('')+`</div><div style="margin-top:12px;line-height:1.9">Entries covered: <b>PKR ${gross.toLocaleString()}</b><br>Already paid out by the manager: <b>− PKR ${Number(m.settles||0).toLocaleString()}</b><br>Cash handed to the owner: <b>PKR ${Number(m.amount).toLocaleString()}</b><br>${m.unconfirmed?'<span style="color:#b3352f">The owner has not confirmed this yet.</span>':'Confirmed by the owner.'}${m.detail?'<br>Note: '+esc(m.detail):''}</div>`+((m.receipts||[]).length?attLinks(m.receipts):''));}
+  showDetail('Cash Out to Owner · '+fmt(m.date),`<div class="att-list">`+(m.covers||[]).map(c=>`<div class="att-chip"><a>${esc(c.label)}</a><em>${esc(c.part)} · PKR ${Number(c.amount).toLocaleString()}</em></div>`).join('')+`</div><div style="margin-top:12px;line-height:1.9">Income entries: <b>PKR ${gross.toLocaleString()}</b><br>Cash given to the owner: <b>PKR ${Number(m.amount).toLocaleString()}</b>${m.detail?'<br>Note: '+esc(m.detail):''}</div>`+((m.receipts||[]).length?attLinks(m.receipts):''));}
 /* With an id the same form edits that cash entry; without one it records a new entry. */
-function openCashEntry(id){const f=document.getElementById('cashForm'),m=id?ledger.find(r=>r.kind==='cash'&&r.ref===id):null;f.reset();
+function openCashEntry(id){const f=document.getElementById('cashForm'),m=id?ledger.find(r=>r.kind==='cash'&&r.ref===id):null,ho=!!(m&&m.type==='handover');f.reset();
  f.action=m?'/cash/'+m.ref:'/cash';document.getElementById('cashMethod').value=m?'PUT':'';document.getElementById('cashTitle').textContent=m?'Edit Cash Entry':'Cash Entry';
  document.getElementById('cashReceiptName').textContent='No file attached';attEditable('cashReceiptNow',m?m.receipts:[]);
+ cashPartsFill();document.getElementById('cashPartsDd').classList.remove('open');
+ /* A new cash-out to the owner picks its entries; a saved one keeps them, so only its date, note and receipts change. */
+ f.elements.type.querySelector('option[value=handover]').disabled=!!m&&!ho;
+ f.elements.type.disabled=ho;f.elements.amount.disabled=ho;
  if(m){f.elements.type.value=m.type;f.elements.wallet.value=m.wallet||'income';f.elements.source.value=m.source||'pocket';f.elements.amount.value=m.amount;f.elements.date.value=String(m.date||'').slice(0,10);f.elements.note.value=m.detail||'';}
- cashTypeSync();openModal('cashModal');}
-function cashTypeSync(){const t=document.getElementById('cashType').value;document.getElementById('cashWalletWrap').style.display=t==='cash_out'?'':'none';document.getElementById('cashSourceWrap').style.display=t==='topup'?'':'none';
-  const hint={topup:'Money the owner sent for running costs. It goes into Petty Cash and is not counted as income.',transfer:'Moves money from Manager Cash (PKR '+Number(CASH.income).toLocaleString()+') into Petty Cash.',cash_out:'Cash leaving the business altogether. To give the manager\'s cash to the owner, use "Hand over to Owner" instead.'};
+ cashTypeSync();
+ if(ho){document.getElementById('cashPartsWrap').style.display='none';document.getElementById('cashHint').textContent='From '+(m.covers||[]).length+' income '+((m.covers||[]).length===1?'entry':'entries')+'. To change the entries or the amount, delete this cash-out and record it again.';}
+ openModal('cashModal');}
+function cashTypeSync(){const t=document.getElementById('cashType').value;document.getElementById('cashWalletWrap').style.display=t==='cash_out'?'':'none';document.getElementById('cashSourceWrap').style.display=t==='topup'?'':'none';document.getElementById('cashPartsWrap').style.display=t==='handover'?'':'none';
+  // Entries only travel with a cash-out to the owner.
+  document.querySelectorAll('#cashPartsList input[type=checkbox]').forEach(c=>c.disabled=t!=='handover');
+  const amt=document.querySelector('#cashForm [name=amount]');if(t!=='handover')amt.removeAttribute('max');
+  if(t==='handover'){cashPartsSync(false);return;}
+  const hint={topup:'Money the owner sent for running costs. It goes into Petty Cash and is not counted as income.',transfer:'Moves money from Manager Cash (PKR '+Number(CASH.income).toLocaleString()+') into Petty Cash.',cash_out:'Cash leaving the business altogether, for example banked or withdrawn. To give the manager\'s cash to the owner, choose "Cash out to Owner".'};
   document.getElementById('cashHint').textContent=hint[t];}
 
 // ---- "Paid from" on the expense form: show what the wallet holds and what would be left. ----
@@ -673,37 +676,19 @@ applyFilters();
 <div class="mact"><button type="button" class="mbtn cancel" onclick="closeModal('addExp')">Cancel</button><button class="mbtn save">Save</button></div>
 </form></div></div>
 {{-- Cash entry: owner top-up, income-to-petty transfer, or cash leaving the resort --}}
-<div class="modal-ov" id="handoverModal" data-sticky><div class="modal wide"><h3>Hand over to Owner</h3>
-<form method="POST" id="hoForm" action="{{ url('/cash/handover') }}" enctype="multipart/form-data">@csrf
-<p class="ho-intro">Tick the entries whose money the manager is giving to the owner. Whatever the manager has already paid out of that cash is taken off automatically.</p>
-<label class="ho-allrow"><input type="checkbox" id="hoAll" onchange="hoAll(this.checked)"> Select all</label>
-<div class="ho-list" id="hoList"></div>
-<div class="ho-spent" id="hoSpent"></div>
-<div class="ho-sum"><div><span>Entries ticked</span><b id="hoGross">PKR 0</b></div><div><span>Already paid out by the manager</span><b id="hoDeduct">− PKR 0</b></div><div class="net"><span>Cash to hand to the owner</span><b id="hoNet">PKR 0</b></div></div>
-<div class="pf-hint warn" id="hoWarn" style="margin-top:8px"></div>
-<div class="mrow"><div><label>Date</label><input type="date" name="date" value="{{ now()->format('Y-m-d') }}"></div><div><label>Note</label><input name="note" maxlength="255" placeholder="e.g. Given in person, or bank transfer"></div></div>
-<label>Receipts <span style="color:#9ca3af;font-weight:400">(optional: transfer screenshot or signed slip)</span></label>
-<div class="cash-rc"><label class="cash-rc-btn" for="hoReceipt"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>Attach receipts</label><input type="file" name="receipts[]" multiple id="hoReceipt" accept="image/jpeg,image/png,image/webp,application/pdf" onchange="attPicked(this,'hoReceiptName','No file attached')"><span id="hoReceiptName">No file attached</span></div>
-@if(auth()->user()->role !== 'admin')<div class="pf-hint" style="margin-top:10px">The owner will be asked to confirm that he received this cash.</div>@endif
-<div class="mact"><button type="button" class="mbtn cancel" onclick="closeModal('handoverModal')">Cancel</button><button class="mbtn save" id="hoSave" disabled>Record Handover</button></div>
-</form></div></div>
-@if(auth()->user()->role === 'admin')
-<div class="modal-ov" id="confirmModal"><div class="modal wide"><h3>Confirm money received by the owner</h3>
-<form method="POST" action="{{ url('/cash/confirm') }}">@csrf
-<p class="ho-intro">These were recorded by the team as money that reached the owner. Tick the ones that really did. Anything left unticked stays marked unconfirmed.</p>
-<div class="ho-list">@forelse($toConfirm as $c)<label class="ho-row"><input type="checkbox" name="items[]" value="{{ $c['key'] }}" checked><span class="ho-tx"><b>{{ $c['label'] }}</b><small>{{ $c['what'] }} · {{ \Carbon\Carbon::parse($c['date'])->format('j M Y') }}</small></span><em>PKR {{ number_format($c['amount']) }}</em></label>@empty<div class="ho-empty">Nothing is waiting for confirmation.</div>@endforelse</div>
-<div class="mact"><button type="button" class="mbtn cancel" onclick="closeModal('confirmModal')">Close</button>@if(count($toConfirm))<button class="mbtn save">Confirm ticked</button>@endif</div>
-</form></div></div>
-@endif
 <div class="modal-ov" id="cashModal"><div class="modal"><h3 id="cashTitle">Cash Entry</h3>
 <form method="POST" id="cashForm" action="{{ url('/cash') }}" enctype="multipart/form-data">@csrf<input type="hidden" name="_method" id="cashMethod" value="">
 <label>What happened</label>
 <select name="type" id="cashType" onchange="cashTypeSync()">
   <option value="topup">Owner sent money (add to Petty Cash)</option>
   <option value="transfer">Move Manager Cash into Petty Cash</option>
-  <option value="cash_out">Cash out (taken out of the business or banked)</option>
+  <option value="handover">Cash out to Owner (manager hands over cash)</option>
+  <option value="cash_out">Cash out of the business (banked or withdrawn)</option>
 </select>
 <div class="pf-hint" id="cashHint"></div>
+<div id="cashPartsWrap" style="display:none"><label>Income entries this cash is from</label>
+<div class="pk-dd" id="cashPartsDd"><button type="button" class="pk-dd-btn" onclick="this.parentNode.classList.toggle('open')"><span id="cashPartsLabel">Select income entries</span><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+<div class="pk-dd-panel"><label class="ho-allrow"><input type="checkbox" id="cashPartsAll" onchange="cashPartsTickAll(this.checked)"> Select all</label><div class="ho-list" id="cashPartsList"></div></div></div></div>
 <div id="cashSourceWrap" style="display:none"><label>Where the owner's money came from</label><select name="source"><option value="pocket">His own pocket (new money into the business)</option><option value="owner">Owner Cash (PKR {{ number_format($cash['owner']) }} of business money he holds)</option></select></div>
 <div id="cashWalletWrap" style="display:none"><label>Taken from</label><select name="wallet"><option value="income">Manager Cash (PKR {{ number_format($cash['income']) }})</option><option value="owner">Owner Cash (PKR {{ number_format($cash['owner']) }})</option><option value="petty">Petty Cash (PKR {{ number_format($cash['petty']) }})</option></select></div>
 <div class="mrow"><div><label>Amount (PKR) *</label><input type="number" name="amount" min="1" required></div><div><label>Date</label><input type="date" name="date" value="{{ now()->format('Y-m-d') }}"></div></div>

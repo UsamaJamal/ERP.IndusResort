@@ -273,7 +273,7 @@ function bookingFormTidy(){document.getElementById('partialPaymentFields').style
 /* Who received the money. A part that has already gone to the owner in a handover is locked. */
 function bookingHolders(b){[['Advance','advance'],['Payment','payment']].forEach(([n,k])=>{const sel=document.getElementById('booking'+n+'Holder'),note=document.getElementById('booking'+n+'HolderNote');
   sel.value=b?(b[k+'_holder']||'manager'):'manager';const locked=!!(b&&b[k+'_handover_id']);sel.disabled=locked;
-  note.textContent=locked?'This money was handed over to the owner. Remove that handover in Financials to change it.':(b&&b[k+'_holder']==='owner'&&!b[k+'_confirmed_at']?'Recorded as received by the owner. Waiting for the owner to confirm.':'');});
+  note.textContent=locked?'This money was given to the owner in a cash-out. Remove that cash-out in Financials to change it.':'';});
   document.getElementById('bookingPaymentHolderLabel').textContent=b&&Number(b.advance_amount)>0?'Balance received by':'Payment received by';}
 function openBookingCreator(){const f=document.getElementById('bookingForm');f.reset();f.action='{{ url('/bookings') }}';document.getElementById('bookingMethod').value='';document.getElementById('bookingModalTitle').textContent='Add Reservation';bookingFormTidy();fillRoomUnits('');openModal('addBooking');}
 function openBookingEditor(id){const b=data.find(x=>x.id===id);if(!b)return;const f=document.getElementById('bookingForm');f.reset();f.action='{{ url('/bookings') }}/'+b.id;document.getElementById('bookingMethod').value='PUT';document.getElementById('bookingModalTitle').textContent='Edit Reservation '+b.code;bookingFormTidy();

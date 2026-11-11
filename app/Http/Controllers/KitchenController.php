@@ -110,24 +110,21 @@ class KitchenController extends Controller
         return back()->with('ok', 'Order '.$order->code.' updated.');
     }
 
-    /**
-     * Who received an order's money. Unchanged, or already handed over to the owner,
-     * means nothing to change; a non-owner saying the owner received it waits for him.
-     */
+    /** Who received an order's money. Unchanged, or already handed over to the owner, means nothing to change. */
     private function holderChange(?KitchenOrder $order, $holder): array
     {
         if (! in_array($holder, ['manager', 'owner'], true) || ($order && ($order->handover_id || $order->received_by === $holder))) {
             return [];
         }
 
-        return ['received_by' => $holder, 'owner_confirmed_at' => $holder === 'owner' && auth()->user()->role === 'admin' ? now() : null];
+        return ['received_by' => $holder];
     }
 
     public function togglePaid($id)
     {
         $order = KitchenOrder::findOrFail($id);
         if ($order->payment_status === 'paid' && $order->handover_id) {
-            return back()->with('ok', 'Order '.$order->code.' is part of a handover to the owner. Remove that handover first.');
+            return back()->with('ok', 'Order '.$order->code.' is part of a cash-out to the owner. Remove that cash-out first.');
         }
         $order->update(['payment_status' => $order->payment_status === 'paid' ? 'unpaid' : 'paid']);
 

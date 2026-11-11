@@ -18,11 +18,13 @@ class CashController extends Controller
     private function validated(Request $r): array
     {
         return $r->validate([
-            // A handover is recorded on its own form, with the receipts it covers.
-            'type' => ['required', Rule::in(['topup', 'transfer', 'cash_out'])],
+            'type' => ['required', Rule::in(array_keys(CashMovement::TYPES))],
             'wallet' => ['nullable', Rule::in(['income', 'petty', 'owner'])],
             'source' => ['nullable', Rule::in(['pocket', 'owner'])],
-            'amount' => 'required|integer|min:1|max:100000000',
+            // A cash-out to the owner may leave the amount blank: it is then the entries picked.
+            'amount' => [Rule::requiredIf(fn () => $r->input('type') !== 'handover'), 'nullable', 'integer', 'min:1', 'max:100000000'],
+            'parts' => 'nullable|array',
+            'parts.*' => ['string', 'regex:/^(b:\d+:(advance|payment)|k:\d+)$/'],
             'date' => 'nullable|date',
             'note' => 'nullable|string|max:255',
         ]);
@@ -33,11 +35,14 @@ class CashController extends Controller
         $movement = CashMovement::findOrFail($id);
         $receipts = Attachment::uploaded($r, ['receipts', 'receipt']);
         if ($movement->type === 'handover') {
-            // Its amount comes from the receipts it covers, so only the date, note and files change.
+            // What it was made up of is fixed, so only the date, note and files change.
             $data = $r->validate(['date' => 'nullable|date', 'note' => 'nullable|string|max:255']);
             $changes = ['date' => $data['date'] ?? $movement->date, 'note' => $data['note'] ?? null];
         } else {
             $data = $this->validated($r);
+            if ($data['type'] === 'handover') {
+                return back()->withErrors(['type' => 'Record a cash-out to the owner as a new entry, so its income entries can be picked.']);
+            }
             $changes = [
                 'type' => $data['type'],
                 'wallet' => $data['type'] === 'cash_out' ? ($data['wallet'] ?? 'income') : 'petty',
@@ -58,6 +63,9 @@ class CashController extends Controller
     {
         $data = $this->validated($r);
         $receipts = Attachment::uploaded($r, ['receipts', 'receipt']);
+        if ($data['type'] === 'handover') {
+            return $this->storeHandover($data, $receipts);
+        }
 
         $movement = CashMovement::create([
             'type' => $data['type'],
@@ -76,61 +84,38 @@ class CashController extends Controller
         return back()->with('ok', CashMovement::TYPES[$movement->type].' of PKR '.number_format($movement->amount).' recorded.');
     }
 
-    public function destroy($id)
-    {
-        $movement = CashMovement::findOrFail($id);
-        if ($movement->type === 'handover') {
-            // Everything it covered goes back to being with the manager and unsettled.
-            DB::transaction(function () use ($movement) {
-                Booking::where('advance_handover_id', $movement->id)->update(['advance_handover_id' => null]);
-                Booking::where('payment_handover_id', $movement->id)->update(['payment_handover_id' => null]);
-                KitchenOrder::where('handover_id', $movement->id)->update(['handover_id' => null]);
-                Expense::where('handover_id', $movement->id)->update(['handover_id' => null]);
-                CashMovement::where('handover_id', $movement->id)->update(['handover_id' => null]);
-            });
-        }
-        Attachment::purge('cash', $movement->id);
-        $movement->delete();
-
-        return back()->with('ok', 'Cash entry deleted.');
-    }
-
     /**
-     * The manager hands cash to the owner. He ticks the receipts whose money he is
-     * handing over; everything he has paid out of manager cash since the last handover
-     * comes off automatically, and the rest is the cash that changes hands.
+     * Cash out to the owner: the manager picks the income entries the cash is from and
+     * hands it over. Those entries then read as with the owner. The amount is the entries
+     * picked unless a smaller one is typed, and never more than the manager is holding.
      */
-    public function handover(Request $r)
+    private function storeHandover(array $data, array $receipts)
     {
-        $data = $r->validate([
-            'parts' => 'required|array|min:1',
-            'parts.*' => ['string', 'regex:/^(b:\d+:(advance|payment)|k:\d+)$/'],
-            'date' => 'nullable|date',
-            'note' => 'nullable|string|max:255',
-        ], ['parts.required' => 'Tick at least one entry to hand over.']);
-        $receipts = Attachment::uploaded($r, ['receipts']);
-
-        $keys = array_values(array_unique($data['parts']));
+        $keys = array_values(array_unique($data['parts'] ?? []));
+        if (! $keys) {
+            return back()->withErrors(['parts' => 'Select the income entries this cash is from.'])->withInput();
+        }
         $parts = Cashbook::parts()->whereIn('key', $keys)->where('holder', 'manager')->values();
         if ($parts->count() !== count($keys)) {
-            return back()->withErrors(['parts' => 'Some of those entries are no longer with the manager. Reload the page and try again.']);
+            return back()->withErrors(['parts' => 'Some of those entries are no longer with the manager. Reload the page and try again.'])->withInput();
         }
-        $spent = Cashbook::unsettled();
-        $gross = (int) $parts->sum('amount');
-        $deduct = (int) $spent->sum('amount');
-        $net = $gross - $deduct;
-        if ($net < 0) {
-            return back()->withErrors(['parts' => 'The manager has paid out PKR '.number_format($deduct).' since the last handover, more than the PKR '.number_format($gross).' ticked. Tick more entries.']);
+        $picked = (int) $parts->sum('amount');
+        $held = (int) Cashbook::balances()['income'];
+        $most = min($picked, $held);
+        $amount = (int) ($data['amount'] ?? $most);
+        if ($most <= 0) {
+            return back()->withErrors(['amount' => 'The manager has no cash in hand to give to the owner.'])->withInput();
+        }
+        if ($amount > $most) {
+            return back()->withErrors(['amount' => 'The most that can be handed over is PKR '.number_format($most).': the entries picked come to PKR '.number_format($picked).' and the manager is holding PKR '.number_format($held).'.'])->withInput();
         }
 
-        $movement = DB::transaction(function () use ($data, $parts, $spent, $net) {
+        $movement = DB::transaction(function () use ($data, $parts, $amount) {
             $movement = CashMovement::create([
-                'type' => 'handover', 'wallet' => 'income', 'amount' => $net,
+                'type' => 'handover', 'wallet' => 'income', 'amount' => $amount,
                 'date' => $data['date'] ?? now()->toDateString(),
                 'note' => $data['note'] ?? null,
                 'user_id' => auth()->id(),
-                // The owner recording it himself needs no second confirmation.
-                'confirmed_at' => auth()->user()->role === 'admin' ? now() : null,
             ]);
             foreach ($parts as $p) {
                 if ($p['source'] === 'booking') {
@@ -139,36 +124,29 @@ class CashController extends Controller
                     KitchenOrder::where('id', $p['id'])->update(['handover_id' => $movement->id]);
                 }
             }
-            Expense::whereIn('id', $spent->where('kind', 'expense')->pluck('id'))->update(['handover_id' => $movement->id]);
-            CashMovement::whereIn('id', $spent->where('kind', 'cash')->pluck('id'))->update(['handover_id' => $movement->id]);
 
             return $movement;
         });
         Attachment::attach($receipts, 'cash', $movement->id);
 
-        return back()->with('ok', 'Handover recorded: PKR '.number_format($gross).' ticked, PKR '.number_format($deduct).' already spent, PKR '.number_format($net).' to the owner.');
+        return back()->with('ok', 'Cash out to owner recorded: PKR '.number_format($amount).' from '.$parts->count().' '.($parts->count() === 1 ? 'entry' : 'entries').'.');
     }
 
-    /** The owner agrees that money recorded as his really reached him. Admin only. */
-    public function confirm(Request $r)
+    public function destroy($id)
     {
-        $data = $r->validate([
-            'items' => 'required|array|min:1',
-            'items.*' => ['string', 'regex:/^(b:\d+:(advance|payment)|k:\d+|h:\d+)$/'],
-        ]);
-        $done = 0;
-        foreach (array_unique($data['items']) as $item) {
-            $bits = explode(':', $item);
-            if ($bits[0] === 'b') {
-                $done += Booking::where('id', $bits[1])->where($bits[2].'_holder', 'owner')->whereNull($bits[2].'_confirmed_at')->update([$bits[2].'_confirmed_at' => now()]);
-            } elseif ($bits[0] === 'k') {
-                $done += KitchenOrder::where('id', $bits[1])->where('received_by', 'owner')->whereNull('owner_confirmed_at')->update(['owner_confirmed_at' => now()]);
-            } else {
-                $done += CashMovement::where('id', $bits[1])->where('type', 'handover')->whereNull('confirmed_at')->update(['confirmed_at' => now()]);
-            }
+        $movement = CashMovement::findOrFail($id);
+        if ($movement->type === 'handover') {
+            // The entries it was made up of go back to being with the manager.
+            DB::transaction(function () use ($movement) {
+                Booking::where('advance_handover_id', $movement->id)->update(['advance_handover_id' => null]);
+                Booking::where('payment_handover_id', $movement->id)->update(['payment_handover_id' => null]);
+                KitchenOrder::where('handover_id', $movement->id)->update(['handover_id' => null]);
+            });
         }
+        Attachment::purge('cash', $movement->id);
+        $movement->delete();
 
-        return back()->with('ok', $done.' '.($done === 1 ? 'entry' : 'entries').' confirmed as received by the owner.');
+        return back()->with('ok', 'Cash entry deleted.');
     }
 
     /** A cash statement for a chosen date range, as a PDF. */

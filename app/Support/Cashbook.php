@@ -15,7 +15,7 @@ use App\Models\KitchenOrder;
  *
  *   manager cash = money the manager received from bookings and the kitchen
  *                  - expenses he paid from it - transfers to petty - cash taken out
- *                  - what he has handed over to the owner
+ *                  - cash he has handed over to the owner (a cash-out to the owner)
  *   owner cash   = money the owner received directly + handovers from the manager
  *                  - expenses the owner paid - cash he took out
  *                  - petty top-ups he funded from this cash
@@ -34,7 +34,7 @@ class Cashbook
      * then the balance) is two parts, because each can be received by a different person.
      *
      * `received_by` is who took the money. `holder` is who has it now: money the
-     * manager received moves to the owner once a handover covers it.
+     * manager received moves to the owner once a cash-out to the owner names it.
      */
     public static function parts()
     {
@@ -42,8 +42,6 @@ class Cashbook
         $rows = collect();
         $part = function (array $p) use ($rows) {
             $p['holder'] = $p['received_by'] === 'owner' || $p['handover_id'] ? 'owner' : 'manager';
-            // Only money a non-owner says the owner received needs the owner's word.
-            $p['unconfirmed'] = $p['received_by'] === 'owner' && ! $p['confirmed'];
             $rows->push($p);
         };
 
@@ -62,7 +60,7 @@ class Cashbook
                     'key' => 'b:'.$b->id.':advance', 'part' => 'advance', 'amount' => $advance,
                     'part_label' => $rest > 0 || ! $paid ? 'Advance' : 'Payment',
                     'received_by' => $b->advance_holder === 'owner' ? 'owner' : 'manager',
-                    'handover_id' => $b->advance_handover_id, 'confirmed' => (bool) $b->advance_confirmed_at,
+                    'handover_id' => $b->advance_handover_id,
                 ]);
             }
             if ($rest > 0) {
@@ -70,7 +68,7 @@ class Cashbook
                     'key' => 'b:'.$b->id.':payment', 'part' => 'payment', 'amount' => $rest,
                     'part_label' => $advance > 0 ? 'Balance' : 'Payment',
                     'received_by' => $b->payment_holder === 'owner' ? 'owner' : 'manager',
-                    'handover_id' => $b->payment_handover_id, 'confirmed' => (bool) $b->payment_confirmed_at,
+                    'handover_id' => $b->payment_handover_id,
                 ]);
             }
         }
@@ -82,30 +80,11 @@ class Cashbook
                 'label' => $o->code.($o->customer_name ? ' · '.$o->customer_name : ''), 'detail' => 'Restaurant order',
                 'group' => 'Kitchen Sales', 'category' => 'Kitchen Sales', 'paid' => true,
                 'received_by' => $o->received_by === 'owner' ? 'owner' : 'manager',
-                'handover_id' => $o->handover_id, 'confirmed' => (bool) $o->owner_confirmed_at,
+                'handover_id' => $o->handover_id,
             ]);
         }
 
         return $rows;
-    }
-
-    /**
-     * What the manager has paid out of the cash he holds that no handover has settled
-     * yet. The next handover takes all of it off what he owes the owner.
-     */
-    public static function unsettled()
-    {
-        $rows = collect();
-        foreach (Expense::whereNull('handover_id')->where(fn ($q) => $q->whereNull('paid_from')->orWhereNotIn('paid_from', ['petty', 'owner']))->get() as $e) {
-            $rows->push(['kind' => 'expense', 'id' => $e->id, 'label' => $e->name, 'detail' => $e->category ?: 'Expense',
-                'date' => substr((string) ($e->date ?: $e->created_at), 0, 10), 'amount' => (int) $e->amount]);
-        }
-        foreach (CashMovement::whereNull('handover_id')->where(fn ($q) => $q->where('type', 'transfer')->orWhere(fn ($w) => $w->where('type', 'cash_out')->where('wallet', 'income')))->get() as $m) {
-            $rows->push(['kind' => 'cash', 'id' => $m->id, 'label' => CashMovement::TYPES[$m->type] ?? 'Cash entry', 'detail' => (string) $m->note,
-                'date' => substr((string) ($m->date ?: $m->created_at), 0, 10), 'amount' => (int) $m->amount]);
-        }
-
-        return $rows->sortBy('date')->values();
     }
 
     /**
@@ -160,7 +139,7 @@ class Cashbook
                 $delta['income'] = -$amount;
                 $delta['petty'] = $amount;
             } elseif ($m->type === 'handover') {
-                $group = 'Handovers (Manager to Owner)';
+                $group = 'Cash Out to Owner';
                 $delta['income'] = -$amount;
                 $delta['owner'] = $amount;
             } elseif ($m->type === 'cash_out') {
@@ -182,7 +161,6 @@ class Cashbook
     public static function balances(): array
     {
         $all = self::entries();
-        $parts = self::parts();
         $income = (int) $all->sum('income');
         $owner = (int) $all->sum('owner');
         $petty = (int) $all->sum('petty');
@@ -190,9 +168,6 @@ class Cashbook
         return [
             'income' => $income, 'manager' => $income, 'owner' => $owner, 'petty' => $petty,
             'total' => $income + $owner + $petty,
-            // Money the manager says went to the owner, which the owner has not confirmed yet.
-            'unconfirmed' => (int) $parts->where('unconfirmed', true)->sum('amount')
-                + (int) CashMovement::where('type', 'handover')->whereNull('confirmed_at')->sum('amount'),
         ];
     }
 
@@ -249,7 +224,7 @@ class Cashbook
             'byCategory' => $byCategory,
             'expenseTotal' => ['income' => (int) -$expenses->sum('income'), 'owner' => (int) -$expenses->sum('owner'), 'petty' => (int) -$expenses->sum('petty'), 'amount' => $spent],
             'cashOut' => ['income' => (int) -$cashOut->sum('income'), 'owner' => (int) -$cashOut->sum('owner'), 'petty' => (int) -$cashOut->sum('petty')],
-            'handovers' => (int) $period->where('group', 'Handovers (Manager to Owner)')->sum('owner'),
+            'handovers' => (int) $period->where('group', 'Cash Out to Owner')->sum('owner'),
             'profit' => ['earned' => $earned, 'spent' => $spent, 'net' => $earned - $spent],
             'entries' => $period,
         ];

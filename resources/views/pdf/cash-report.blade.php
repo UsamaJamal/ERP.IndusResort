@@ -65,7 +65,7 @@ table{width:100%;border-collapse:collapse}
 <tr><td>Money out</td><td class="num out">{{ $m($st['income']['out']) }}</td><td class="num out">{{ $m($st['owner']['out']) }}</td><td class="num out">{{ $m($st['petty']['out']) }}</td><td class="num out">{{ $m($st['total']['out']) }}</td></tr>
 <tr class="strong"><td>Closing balance<br><span class="sub">end of {{ $d($st['to']) }}</span></td><td class="num {{ $neg($st['income']['closing']) }}">{{ $m($st['income']['closing']) }}</td><td class="num {{ $neg($st['owner']['closing']) }}">{{ $m($st['owner']['closing']) }}</td><td class="num {{ $neg($st['petty']['closing']) }}">{{ $m($st['petty']['closing']) }}</td><td class="num {{ $neg($st['total']['closing']) }}">{{ $m($st['total']['closing']) }}<br><span class="sub">Cash in hand</span></td></tr>
 </tbody></table>
-<div class="note">Money moved between wallets (a handover from the manager to the owner, a transfer into petty cash) counts as out of one and into the other, but not in the Total column, because it never left the business.@if($st['handovers'] > 0) The manager handed PKR {{ number_format($st['handovers']) }} to the owner in this period.@endif</div>
+<div class="note">Money moved between wallets (a cash-out from the manager to the owner, a transfer into petty cash) counts as out of one and into the other, but not in the Total column, because it never left the business.@if($st['handovers'] > 0) The manager gave PKR {{ number_format($st['handovers']) }} to the owner in this period.@endif</div>
 
 {{-- 2. Where money came from --}}
 <div class="section">Where the money came from</div>

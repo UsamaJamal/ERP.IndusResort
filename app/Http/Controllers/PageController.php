@@ -170,8 +170,7 @@ class PageController extends Controller
     /**
      * Who received one part of a booking's money (`advance` or `payment`).
      * Returns the columns to change, or nothing when the choice is absent, unchanged,
-     * or the money has already been handed over (that handover has to be removed first).
-     * Money a manager records as received by the owner waits for the owner to confirm it.
+     * or the money has already been handed over (that cash-out has to be removed first).
      */
     private function holderChange(?Booking $booking, string $part, $holder): array
     {
@@ -182,10 +181,7 @@ class PageController extends Controller
             return [];
         }
 
-        return [
-            $part.'_holder' => $holder,
-            $part.'_confirmed_at' => $holder === 'owner' && auth()->user()->role === 'admin' ? now() : null,
-        ];
+        return [$part.'_holder' => $holder];
     }
 
     public function bookingStore(Request $r)
@@ -678,7 +674,7 @@ class PageController extends Controller
         $b = Booking::findOrFail($id);
         // Once the balance has gone to the owner in a handover it cannot quietly become unpaid.
         if ($b->invoice_status === 'paid' && $b->payment_handover_id) {
-            return back()->with('ok', 'This payment is part of a handover to the owner. Remove that handover first.');
+            return back()->with('ok', 'This payment is part of a cash-out to the owner. Remove that cash-out first.');
         }
         $nights = max(1, (int) preg_replace('/\D+/', '', (string) $b->duration));
         $total = (float) ($b->amount ?: ((int) $b->price_per_night * $nights));
@@ -953,7 +949,7 @@ class PageController extends Controller
         $handoverDates = \App\Models\CashMovement::where('type', 'handover')->pluck('date', 'id');
         $holders = fn (string $source, int $id) => $parts->where('source', $source)->where('id', $id)->values()->map(fn ($p) => [
             'key' => $p['key'], 'part' => $p['part_label'], 'amount' => $p['amount'],
-            'holder' => $p['holder'], 'received_by' => $p['received_by'], 'unconfirmed' => $p['unconfirmed'],
+            'holder' => $p['holder'], 'received_by' => $p['received_by'],
             'handed' => $p['handover_id'] ? substr((string) ($handoverDates[$p['handover_id']] ?? ''), 0, 10) : null,
         ]);
         // How a set of parts changes each wallet: what the manager received, and the owner.
@@ -1010,17 +1006,15 @@ class PageController extends Controller
         $cashRecords = \App\Models\CashMovement::with('attachments')->orderByDesc('date')->orderByDesc('id')->get()
             ->filter(fn ($m) => $within($day($m->date, $m->created_at), $from, $to))->values()->map(fn ($m) => [
             'kind' => 'cash', 'type' => $m->type, 'wallet' => $m->wallet, 'ref' => $m->id,
-            'source' => $m->source, 'settled' => (bool) $m->handover_id,
-            'unconfirmed' => $m->type === 'handover' && ! $m->confirmed_at,
+            'source' => $m->source,
             // What this entry does to each wallet, signed.
             'w' => [
                 'income' => in_array($m->type, ['transfer', 'handover'], true) || ($m->type === 'cash_out' && ! in_array($m->wallet, ['petty', 'owner'], true)) ? -(int) $m->amount : 0,
                 'owner' => $m->type === 'handover' ? (int) $m->amount : (($m->type === 'cash_out' && $m->wallet === 'owner') || ($m->type === 'topup' && $m->source === 'owner') ? -(int) $m->amount : 0),
                 'petty' => in_array($m->type, ['topup', 'transfer'], true) ? (int) $m->amount : ($m->type === 'cash_out' && $m->wallet === 'petty' ? -(int) $m->amount : 0),
             ],
-            // A handover lists the receipts it moved to the owner and what it settled.
+            // A cash-out to the owner lists the income entries it was made up of.
             'covers' => $m->type === 'handover' ? $parts->where('handover_id', $m->id)->values()->map(fn ($p) => ['label' => $p['label'], 'part' => $p['part_label'], 'amount' => $p['amount']]) : [],
-            'settles' => $m->type === 'handover' ? (int) Expense::where('handover_id', $m->id)->sum('amount') + (int) \App\Models\CashMovement::where('handover_id', $m->id)->sum('amount') : 0,
             'name' => \App\Models\CashMovement::TYPES[$m->type] ?? 'Cash entry',
             'category' => $m->type === 'topup' ? ($m->source === 'owner' ? 'From Owner Cash' : "From owner's pocket")
                 : ($m->type === 'transfer' ? 'Manager Cash to Petty Cash'
@@ -1036,18 +1030,11 @@ class PageController extends Controller
         return view('expenses', [
             'cash'          => $cashNow,
             'cashView'      => $cashView,
-            // For the handover form: every receipt still with the manager, whatever the period,
-            // and what he has paid out of that cash since the last handover.
+            // For a cash-out to the owner: every income entry whose money is still with the manager,
+            // whatever period the page is showing.
             'handoverParts' => $parts->where('holder', 'manager')->sortByDesc('date')->values()->map(fn ($p) => [
                 'key' => $p['key'], 'label' => $p['label'], 'part' => $p['part_label'], 'group' => $p['group'], 'date' => $p['date'], 'amount' => $p['amount'],
             ]),
-            'unsettled'     => \App\Support\Cashbook::unsettled(),
-            // For the owner: what others have recorded as received by him, not yet confirmed.
-            'toConfirm'     => $parts->where('unconfirmed', true)->values()->map(fn ($p) => [
-                'key' => $p['key'], 'label' => $p['label'], 'what' => $p['part_label'].' received by Owner', 'date' => $p['date'], 'amount' => $p['amount'],
-            ])->concat(\App\Models\CashMovement::where('type', 'handover')->whereNull('confirmed_at')->orderBy('date')->get()->map(fn ($m) => [
-                'key' => 'h:'.$m->id, 'label' => 'Handover to Owner', 'what' => trim('Cash handed over by the manager '.($m->note ? '· '.$m->note : '')), 'date' => substr((string) $m->date, 0, 10), 'amount' => (int) $m->amount,
-            ]))->values(),
             'period'        => $period,
             'cashRecords'   => $cashRecords,
             'roomIncome'    => $roomIncome,

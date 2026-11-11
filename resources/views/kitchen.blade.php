@@ -425,7 +425,7 @@ function openOrder(id){
     document.getElementById('orderSave').textContent = o ? 'Save Changes' : 'Save Order';
     document.getElementById('oProofName').textContent = 'No file attached';
     attEditable('oProofNow', o ? o.proofs : []);
-    // Once the money has gone to the owner in a handover, who received it is settled.
+    // Once the money has gone to the owner in a cash-out, who received it is fixed.
     const oh = document.getElementById('oHolder'); oh.value = o ? o.received_by : 'manager'; oh.disabled = !!(o && o.handed);
     if (o) {
         document.getElementById('oType').value = o.type;

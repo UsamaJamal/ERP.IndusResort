@@ -12,7 +12,7 @@ class CashMovement extends Model
 
     protected $guarded = [];
 
-    public const TYPES = ['topup' => 'Petty Cash Top-up', 'transfer' => 'Manager Cash to Petty Transfer', 'cash_out' => 'Cash Out', 'handover' => 'Handover to Owner'];
+    public const TYPES = ['topup' => 'Petty Cash Top-up', 'transfer' => 'Manager Cash to Petty Transfer', 'cash_out' => 'Cash Out', 'handover' => 'Cash Out to Owner'];
 
     protected $casts = ['confirmed_at' => 'datetime'];
 }
