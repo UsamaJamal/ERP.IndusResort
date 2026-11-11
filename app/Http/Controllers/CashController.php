@@ -127,6 +127,7 @@ class CashController extends Controller
 
             return $movement;
         });
+        Cashbook::flush(); // the bulk updates above do not announce themselves
         Attachment::attach($receipts, 'cash', $movement->id);
 
         return back()->with('ok', 'Cash out to owner recorded: PKR '.number_format($amount).' from '.$parts->count().' '.($parts->count() === 1 ? 'entry' : 'entries').'.');
@@ -142,6 +143,7 @@ class CashController extends Controller
                 Booking::where('payment_handover_id', $movement->id)->update(['payment_handover_id' => null]);
                 KitchenOrder::where('handover_id', $movement->id)->update(['handover_id' => null]);
             });
+            Cashbook::flush();
         }
         Attachment::purge('cash', $movement->id);
         $movement->delete();
@@ -198,6 +200,7 @@ class CashController extends Controller
         ]);
 
         $count = Expense::whereIn('id', $data['ids'])->update(['paid_from' => $data['paid_from']]);
+        Cashbook::flush();
 
         return back()->with('ok', $count.' '.($count === 1 ? 'expense' : 'expenses').' now paid from '.Cashbook::WALLETS[$data['paid_from']].'.');
     }

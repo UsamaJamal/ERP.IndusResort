@@ -479,7 +479,7 @@ const data=@json($expenses);
 const KITCHEN_CATS=@json($kitchenCats);
 const ledger=[...data.map(e=>({...e,kind:'expense'})),...@json($incomeRecords),...@json($cashRecords)];
 const CASH=@json($cash);
-const HANDOVER_PARTS=@json($handoverParts);
+const HANDOVER_PARTS=@json($handoverParts), HANDOVER_TOTAL=@json($handoverTotal);
 const WLABEL={income:'Manager Cash',owner:'Owner Cash',petty:'Petty Cash'};
 const walletOf=e=>e.paid_from==='petty'?'petty':e.paid_from==='owner'?'owner':'income';
 // What a record does to a wallet, signed: income and cash rows carry it from the server
@@ -541,7 +541,7 @@ function bulkClear(){PICKED.clear();applyFilters();}
 function bulkPaidFrom(w){if(!PICKED.size)return;const f=document.createElement('form');f.method='POST';f.action='/expenses/paid-from';f.style.display='none';let h='<input name="_token" value="'+document.querySelector('meta[name=csrf-token]').content+'"><input name="paid_from" value="'+w+'">';PICKED.forEach(id=>h+='<input name="ids[]" value="'+id+'">');f.innerHTML=h;document.body.appendChild(f);f.submit();}
 
 // ---- Cash report modal: quick ranges fill the two dates ----
-const RP_FIRST=@json(optional(\App\Support\Cashbook::entries()->first())['date'] ?? now()->toDateString());
+const RP_FIRST=@json(\App\Support\Cashbook::firstDay() ?? now()->toDateString());
 function rpRange(kind){const pad=n=>String(n).padStart(2,'0'), iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
   const now=new Date(); let a,b=now;
   if(kind==='month')a=new Date(now.getFullYear(),now.getMonth(),1);
@@ -562,7 +562,9 @@ document.addEventListener('input',e=>{if(e.target.id==='rpFrom'||e.target.id==='
 const edIco='<svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
 const rcIco='<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 14h8M8 18h5"/></svg>';
 /* ---- Cash out to the owner: the income entries the cash is from are picked in a dropdown. ---- */
-function cashPartsFill(){document.getElementById('cashPartsList').innerHTML=HANDOVER_PARTS.length?HANDOVER_PARTS.map(p=>`<label class="ho-row"><input type="checkbox" name="parts[]" value="${esc(p.key)}" data-amt="${p.amount}" onchange="cashPartsSync(true)"><span class="ho-tx"><b>${esc(p.label)}</b><small>${esc(p.group)} · ${esc(p.part)} · ${fmt(p.date)}</small></span><em>PKR ${Number(p.amount).toLocaleString()}</em></label>`).join(''):'<div class="ho-empty">No income is with the manager right now.</div>';document.getElementById('cashPartsAll').checked=false;}
+function cashPartsFill(){document.getElementById('cashPartsList').innerHTML=HANDOVER_PARTS.length?HANDOVER_PARTS.map(p=>`<label class="ho-row"><input type="checkbox" name="parts[]" value="${esc(p.key)}" data-amt="${p.amount}" onchange="cashPartsSync(true)"><span class="ho-tx"><b>${esc(p.label)}</b><small>${esc(p.group)} · ${esc(p.part)} · ${fmt(p.date)}</small></span><em>PKR ${Number(p.amount).toLocaleString()}</em></label>`).join(''):'<div class="ho-empty">No income is with the manager right now.</div>';
+  if(HANDOVER_TOTAL>HANDOVER_PARTS.length)document.getElementById('cashPartsList').insertAdjacentHTML('beforeend',`<div class="ho-empty">Showing the latest ${HANDOVER_PARTS.length} of ${Number(HANDOVER_TOTAL).toLocaleString()} entries with the manager.</div>`);
+  document.getElementById('cashPartsAll').checked=false;}
 function cashPartsTickAll(on){document.querySelectorAll('#cashPartsList input[type=checkbox]').forEach(c=>c.checked=on);cashPartsSync(true);}
 /* Picking entries fills the amount: the entries picked, but never more than the manager holds. It can be lowered by hand. */
 function cashPartsSync(fill){const ticks=[...document.querySelectorAll('#cashPartsList input:checked')],picked=ticks.reduce((t,c)=>t+Number(c.dataset.amt),0),held=Math.max(0,Number(CASH.income)),most=Math.min(picked,held);

@@ -30,6 +30,108 @@ class Cashbook
     public const WALLETS = ['income' => 'Manager Cash', 'owner' => 'Owner Cash', 'petty' => 'Petty Cash'];
 
     /**
+     * Everything below is worked out once per request and kept here. A page asks for
+     * balances, a statement and the list of parts, and each of those used to read every
+     * booking, order, expense and cash entry again. Saving or deleting any of them
+     * empties this (see AppServiceProvider), so nothing stale is ever handed out.
+     */
+    private static $memo = [];
+
+    public static function flush(): void
+    {
+        self::$memo = [];
+    }
+
+    private static function once(string $key, callable $make)
+    {
+        if (! array_key_exists($key, self::$memo)) {
+            self::$memo[$key] = $make();
+        }
+
+        return self::$memo[$key];
+    }
+
+    /** The day a record counts on: its own date, or the day it was entered when it has none. */
+    private static function day($value, $fallback = null): ?string
+    {
+        return ($d = substr((string) ($value ?: $fallback), 0, 10)) !== '' ? $d : null;
+    }
+
+    /*
+     * The four tables, read as plain rows with only the columns the sums need, each row
+     * carrying the `day` it counts on. Plain rows cost a fraction of full models, which
+     * matters once there are tens of thousands of them.
+     */
+    public static function bookings()
+    {
+        return self::once('bookings', fn () => Booking::query()->toBase()->orderBy('id')->get([
+            'id', 'code', 'guest_name', 'room_type', 'room_number', 'amount', 'advance_amount', 'invoice_status',
+            'check_in', 'created_at', 'advance_holder', 'payment_holder', 'advance_handover_id', 'payment_handover_id',
+        ])->each(function ($b) {
+            $b->id = (int) $b->id; // a model gives its key as a number; a plain row may not
+            $b->day = self::day($b->check_in, $b->created_at);
+        }));
+    }
+
+    public static function sales()
+    {
+        return self::once('sales', fn () => KitchenOrder::sales()->toBase()->orderBy('id')->get([
+            'id', 'code', 'customer_name', 'total', 'order_date', 'created_at', 'received_by', 'handover_id',
+        ])->each(function ($o) {
+            $o->id = (int) $o->id; // a model gives its key as a number; a plain row may not
+            $o->day = self::day($o->order_date, $o->created_at);
+        }));
+    }
+
+    public static function expenses()
+    {
+        return self::once('expenses', fn () => Expense::query()->toBase()->orderBy('id')->get([
+            'id', 'name', 'category', 'amount', 'date', 'created_at', 'paid_from',
+        ])->each(function ($e) {
+            $e->id = (int) $e->id; // a model gives its key as a number; a plain row may not
+            $e->day = self::day($e->date, $e->created_at);
+        }));
+    }
+
+    public static function movements()
+    {
+        return self::once('movements', fn () => CashMovement::query()->toBase()->orderBy('id')->get([
+            'id', 'type', 'wallet', 'source', 'amount', 'date', 'note', 'created_at',
+        ])->each(function ($m) {
+            $m->id = (int) $m->id; // a model gives its key as a number; a plain row may not
+            $m->day = self::day($m->date, $m->created_at);
+        }));
+    }
+
+    /** Parts filed two ways in one pass: by the record they belong to, and by the cash-out that moved them. */
+    private static function partIndex(): array
+    {
+        return self::once('parts.index', function () {
+            $bySource = $byHandover = [];
+            foreach (self::parts() as $p) {
+                $bySource[$p['source'].':'.$p['id']][] = $p;
+                if ($p['handover_id']) {
+                    $byHandover[$p['handover_id']][] = $p;
+                }
+            }
+
+            return ['source' => $bySource, 'handover' => $byHandover];
+        });
+    }
+
+    /** The parts of one booking or kitchen order, found without scanning the whole list. */
+    public static function partsOf(string $source, $id)
+    {
+        return collect(self::partIndex()['source'][$source.':'.$id] ?? []);
+    }
+
+    /** The parts a cash-out to the owner was made up of. */
+    public static function partsIn($handoverId)
+    {
+        return collect(self::partIndex()['handover'][$handoverId] ?? []);
+    }
+
+    /**
      * Every receipt of money, one row per part: a booking paid in two goes (advance,
      * then the balance) is two parts, because each can be received by a different person.
      *
@@ -38,19 +140,23 @@ class Cashbook
      */
     public static function parts()
     {
-        $day = fn ($value, $fallback = null) => ($d = substr((string) ($value ?: $fallback), 0, 10)) !== '' ? $d : null;
+        return self::once('parts', fn () => self::buildParts());
+    }
+
+    private static function buildParts()
+    {
         $rows = collect();
         $part = function (array $p) use ($rows) {
             $p['holder'] = $p['received_by'] === 'owner' || $p['handover_id'] ? 'owner' : 'manager';
             $rows->push($p);
         };
 
-        foreach (Booking::all() as $b) {
+        foreach (self::bookings() as $b) {
             $paid = $b->invoice_status === 'paid';
             $advance = (int) $b->advance_amount > 0 ? min((int) ($b->amount ?: $b->advance_amount), (int) $b->advance_amount) : 0;
             $rest = $paid ? max(0, (int) $b->amount - $advance) : 0;
             $base = [
-                'source' => 'booking', 'id' => $b->id, 'date' => $day($b->check_in, $b->created_at),
+                'source' => 'booking', 'id' => $b->id, 'date' => $b->day,
                 'label' => $b->code.' · '.$b->guest_name,
                 'detail' => trim(($b->room_type ?: '').($b->room_number ? ' · Room '.$b->room_number : '')),
                 'group' => 'Room Bookings', 'category' => 'Room Booking', 'paid' => $paid,
@@ -73,10 +179,10 @@ class Cashbook
             }
         }
 
-        foreach (KitchenOrder::sales()->get() as $o) {
+        foreach (self::sales() as $o) {
             $part([
                 'key' => 'k:'.$o->id, 'source' => 'kitchen', 'id' => $o->id, 'part' => 'payment', 'part_label' => 'Payment',
-                'date' => $day($o->order_date, $o->created_at), 'amount' => (int) $o->total,
+                'date' => $o->day, 'amount' => (int) $o->total,
                 'label' => $o->code.($o->customer_name ? ' · '.$o->customer_name : ''), 'detail' => 'Restaurant order',
                 'group' => 'Kitchen Sales', 'category' => 'Kitchen Sales', 'paid' => true,
                 'received_by' => $o->received_by === 'owner' ? 'owner' : 'manager',
@@ -97,7 +203,32 @@ class Cashbook
      */
     public static function entries()
     {
-        $day = fn ($value, $fallback = null) => ($d = substr((string) ($value ?: $fallback), 0, 10)) !== '' ? $d : null;
+        return self::once('entries', fn () => self::rows()->sortBy('date')->values());
+    }
+
+    /** The same rows in no particular order, for the sums: sorting tens of thousands of rows is only worth it for a printed list. */
+    public static function rows()
+    {
+        return self::once('rows', fn () => self::buildRows());
+    }
+
+    /** The earliest day anything was recorded, or null when the books are empty. */
+    public static function firstDay(): ?string
+    {
+        return self::once('firstDay', function () {
+            $first = null;
+            foreach (self::rows() as $r) {
+                if ($r['date'] !== null && ($first === null || $r['date'] < $first)) {
+                    $first = $r['date'];
+                }
+            }
+
+            return $first;
+        });
+    }
+
+    private static function buildRows()
+    {
         $rows = collect();
 
         foreach (self::parts() as $p) {
@@ -111,10 +242,10 @@ class Cashbook
             ]);
         }
 
-        foreach (Expense::all() as $e) {
+        foreach (self::expenses() as $e) {
             $wallet = in_array($e->paid_from, ['petty', 'owner'], true) ? $e->paid_from : 'income';
             $rows->push([
-                'date' => $day($e->date, $e->created_at), 'group' => 'Expenses', 'label' => $e->name,
+                'date' => $e->day, 'group' => 'Expenses', 'label' => $e->name,
                 'detail' => 'Paid from '.self::WALLETS[$wallet],
                 'category' => $e->category ?: 'Uncategorised',
                 'income' => $wallet === 'income' ? -(int) $e->amount : 0,
@@ -124,7 +255,7 @@ class Cashbook
             ]);
         }
 
-        foreach (CashMovement::all() as $m) {
+        foreach (self::movements() as $m) {
             $amount = (int) $m->amount;
             $delta = ['income' => 0, 'owner' => 0, 'petty' => 0];
             $group = 'Other';
@@ -147,23 +278,30 @@ class Cashbook
                 $delta[in_array($m->wallet, ['petty', 'owner'], true) ? $m->wallet : 'income'] = -$amount;
             }
             $rows->push([
-                'date' => $day($m->date, $m->created_at), 'group' => $group,
+                'date' => $m->day, 'group' => $group,
                 'label' => CashMovement::TYPES[$m->type] ?? 'Cash entry',
                 'detail' => (string) $m->note, 'category' => $group,
                 'profit' => 0,
             ] + $delta);
         }
 
-        return $rows->sortBy('date')->values();
+        return $rows;
     }
 
     /** What each wallet holds right now. */
     public static function balances(): array
     {
-        $all = self::entries();
-        $income = (int) $all->sum('income');
-        $owner = (int) $all->sum('owner');
-        $petty = (int) $all->sum('petty');
+        return self::once('balances', fn () => self::buildBalances());
+    }
+
+    private static function buildBalances(): array
+    {
+        $income = $owner = $petty = 0;
+        foreach (self::rows() as $r) {
+            $income += $r['income'];
+            $owner += $r['owner'];
+            $petty += $r['petty'];
+        }
 
         return [
             'income' => $income, 'manager' => $income, 'owner' => $owner, 'petty' => $petty,
@@ -177,12 +315,26 @@ class Cashbook
      */
     public static function statement(string $from, string $to): array
     {
-        $all = self::entries();
-        $before = $all->filter(fn ($r) => $r['date'] !== null && $r['date'] < $from);
-        $period = $all->filter(fn ($r) => $r['date'] !== null && $r['date'] >= $from && $r['date'] <= $to)->values();
+        // One pass over everything: rows before the range only add to the opening balances,
+        // rows inside it are kept, the rest are ignored.
+        $openings = ['income' => 0, 'owner' => 0, 'petty' => 0];
+        $inside = [];
+        foreach (self::rows() as $r) {
+            if ($r['date'] === null) {
+                continue;
+            }
+            if ($r['date'] < $from) {
+                $openings['income'] += $r['income'];
+                $openings['owner'] += $r['owner'];
+                $openings['petty'] += $r['petty'];
+            } elseif ($r['date'] <= $to) {
+                $inside[] = $r;
+            }
+        }
+        $period = collect($inside)->sortBy('date')->values();
 
-        $wallet = function (string $w) use ($before, $period) {
-            $opening = (int) $before->sum($w);
+        $wallet = function (string $w) use ($openings, $period) {
+            $opening = (int) $openings[$w];
             $in = (int) $period->sum(fn ($r) => max(0, $r[$w]));
             $out = (int) $period->sum(fn ($r) => max(0, -$r[$w]));
 
