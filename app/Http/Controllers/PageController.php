@@ -167,6 +167,27 @@ class PageController extends Controller
         ]);
     }
 
+    /**
+     * Who received one part of a booking's money (`advance` or `payment`).
+     * Returns the columns to change, or nothing when the choice is absent, unchanged,
+     * or the money has already been handed over (that handover has to be removed first).
+     * Money a manager records as received by the owner waits for the owner to confirm it.
+     */
+    private function holderChange(?Booking $booking, string $part, $holder): array
+    {
+        if (! in_array($holder, ['manager', 'owner'], true)) {
+            return [];
+        }
+        if ($booking && ($booking->{$part.'_handover_id'} || $booking->{$part.'_holder'} === $holder)) {
+            return [];
+        }
+
+        return [
+            $part.'_holder' => $holder,
+            $part.'_confirmed_at' => $holder === 'owner' && auth()->user()->role === 'admin' ? now() : null,
+        ];
+    }
+
     public function bookingStore(Request $r)
     {
         $data = $r->validate([
@@ -179,6 +200,7 @@ class PageController extends Controller
             'amenities'=>'nullable|array','amenity_notes'=>'nullable|string|max:500',
         ]);
         $receipts = Attachment::uploaded($r, ['receipts', 'payment_receipt']);
+        $data = array_merge($data, $this->holderChange(null, 'advance', $r->input('advance_holder')), $this->holderChange(null, 'payment', $r->input('payment_holder')));
         $data['partial_payment'] = $r->boolean('partial_payment');
         $data['advance_amount'] = (int) ($data['advance_amount'] ?? 0);
         $data['price_per_night'] = (int) $data['price_per_night'];
@@ -286,6 +308,7 @@ class PageController extends Controller
         $data['room_label'] = trim(($data['room_type'] ?? '').' '.$newNumber);
         $partialNow = (bool) ($data['partial_payment'] ?? $booking->partial_payment);
         $paid = $booking->invoice_status === 'paid';
+        $data = array_merge($data, $this->holderChange($booking, 'advance', $r->input('advance_holder')), $this->holderChange($booking, 'payment', $r->input('payment_holder')));
         $booking->update($data);
         // While only the advance has been paid, new files are advance receipts;
         // once the booking is paid in full they are receipts for that payment.
@@ -303,10 +326,11 @@ class PageController extends Controller
         // Payment proof is mandatory here; one file or several.
         $proofs = Attachment::uploaded($r, ['payment_proof'], true, 'payment proof');
 
+        // The proof is for the advance on a part-paid booking, otherwise for the whole payment.
         $booking->update([
             'status' => 'confirmed',
             'invoice_status' => $booking->partial_payment ? 'partial' : 'paid',
-        ]);
+        ] + $this->holderChange($booking, $booking->partial_payment ? 'advance' : 'payment', $r->input('received_by')));
         Attachment::attach($proofs, 'booking', $booking->id, 'payment');
         $this->syncRoomForBooking($booking);
         return back()->with('ok', 'Reservation confirmed and payment proof saved');
@@ -649,9 +673,13 @@ class PageController extends Controller
         return view('invoice', compact('bookings', 'totals'));
     }
 
-    public function invoiceToggle($id)
+    public function invoiceToggle(Request $r, $id)
     {
         $b = Booking::findOrFail($id);
+        // Once the balance has gone to the owner in a handover it cannot quietly become unpaid.
+        if ($b->invoice_status === 'paid' && $b->payment_handover_id) {
+            return back()->with('ok', 'This payment is part of a handover to the owner. Remove that handover first.');
+        }
         $nights = max(1, (int) preg_replace('/\D+/', '', (string) $b->duration));
         $total = (float) ($b->amount ?: ((int) $b->price_per_night * $nights));
         $advance = min($total, (float) $b->advance_amount);
@@ -667,7 +695,7 @@ class PageController extends Controller
                 'invoice_status' => 'paid',
                 'final_payment_amount' => max(0, $total - $advance),
                 'final_payment_paid_at' => now(),
-            ]);
+            ] + $this->holderChange($b, 'payment', $r->input('received_by')));
         }
         return back();
     }
@@ -860,14 +888,18 @@ class PageController extends Controller
         $cashView = [
             'total' => $ended ? $statement['total']['closing'] : $cashNow['total'],
             'income' => $ended ? $statement['income']['closing'] : $cashNow['income'],
+            'owner' => $ended ? $statement['owner']['closing'] : $cashNow['owner'],
             'petty' => $ended ? $statement['petty']['closing'] : $cashNow['petty'],
             'income_in' => $statement['income']['in'], 'income_out' => $statement['income']['out'],
+            'owner_in' => $statement['owner']['in'], 'owner_out' => $statement['owner']['out'],
             'petty_in' => $statement['petty']['in'], 'petty_out' => $statement['petty']['out'],
             'as_of' => $ended ? \Carbon\Carbon::parse($to)->format('j M Y') : null,
         ];
 
         $year = (int) (request('year') ?: now()->year);
-        $years = collect([now()->year])->merge(Expense::selectRaw('YEAR(date) as y')->pluck('y'))->merge(Booking::selectRaw('YEAR(check_in) as y')->pluck('y'))->merge(KitchenOrder::selectRaw('YEAR(order_date) as y')->pluck('y'))->filter()->unique()->sortDesc()->values();
+        // Years that have any record, read in PHP so it does not depend on the database's date functions.
+        $yearOf = fn ($value) => (int) substr((string) $value, 0, 4);
+        $years = collect([now()->year])->merge(Expense::pluck('date')->map($yearOf))->merge(Booking::pluck('check_in')->map($yearOf))->merge(KitchenOrder::pluck('order_date')->map($yearOf))->filter()->unique()->sortDesc()->values();
         $earnings = collect(range(1, 12))->map(function ($month) use ($year) {
             return [
                 'month' => now()->setDate($year, $month, 1)->format('M'),
@@ -916,8 +948,24 @@ class PageController extends Controller
 
         // Income records for the ledger: every paid restaurant order and every paid booking.
         // They are listed beside the expenses so the page reads as one record of money in and out.
+        // Who holds each receipt of money, so every row can say where its cash is.
+        $parts = \App\Support\Cashbook::parts();
+        $handoverDates = \App\Models\CashMovement::where('type', 'handover')->pluck('date', 'id');
+        $holders = fn (string $source, int $id) => $parts->where('source', $source)->where('id', $id)->values()->map(fn ($p) => [
+            'key' => $p['key'], 'part' => $p['part_label'], 'amount' => $p['amount'],
+            'holder' => $p['holder'], 'received_by' => $p['received_by'], 'unconfirmed' => $p['unconfirmed'],
+            'handed' => $p['handover_id'] ? substr((string) ($handoverDates[$p['handover_id']] ?? ''), 0, 10) : null,
+        ]);
+        // How a set of parts changes each wallet: what the manager received, and the owner.
+        $wallets = fn ($held) => [
+            'income' => (int) $held->where('received_by', 'manager')->sum('amount'),
+            'owner' => (int) $held->where('received_by', 'owner')->sum('amount'),
+            'petty' => 0,
+        ];
+
         $incomeRecords = $sales->map(fn ($o) => [
             'kind' => 'income', 'source' => 'kitchen', 'ref' => $o->id,
+            'holders' => $held = $holders('kitchen', $o->id), 'w' => $wallets($held),
             'name' => $o->code.($o->customer_name ? ' · '.$o->customer_name : ''),
             'category' => 'Kitchen Sales',
             'detail' => $o->items->map(fn ($i) => $i->name.($i->quantity > 1 ? ' x'.$i->quantity : ''))->implode(', '),
@@ -929,6 +977,7 @@ class PageController extends Controller
         ])->concat(
             $paidBookings->map(fn ($b) => [
                 'kind' => 'income', 'source' => 'room', 'ref' => $b->id,
+                'holders' => $held = $holders('booking', $b->id), 'w' => $wallets($held),
                 'name' => $b->code.' · '.$b->guest_name,
                 'category' => 'Room Booking',
                 'detail' => trim(($b->room_type ?: '').' '.($b->room_number ? 'Room '.$b->room_number : '')),
@@ -939,14 +988,44 @@ class PageController extends Controller
                 // Whatever was attached on the reservation opens straight from this page too.
                 'receipts' => $b->attachments,
             ])
+        )->concat(
+            // An advance on a booking that is not fully paid yet is cash in someone's hand,
+            // but not income until the booking is paid, so it is its own kind of row.
+            Booking::with('attachments')->where('invoice_status', '!=', 'paid')->where('advance_amount', '>', 0)->orderByDesc('id')->get()
+                ->filter(fn ($b) => $within($bookingDay($b), $from, $to))->values()->map(fn ($b) => [
+                    'kind' => 'advance', 'source' => 'room', 'ref' => $b->id,
+                    'holders' => $held = $holders('booking', $b->id), 'w' => $wallets($held),
+                    'name' => $b->code.' · '.$b->guest_name,
+                    'category' => 'Booking Advance',
+                    'detail' => trim(($b->room_type ?: '').' '.($b->room_number ? 'Room '.$b->room_number : '')),
+                    'quantity' => 1,
+                    'amount' => (int) $held->sum('amount'),
+                    'date' => $bookingDay($b),
+                    'link' => url('/guest-profile').'?id='.$b->id,
+                    'receipts' => $b->attachments,
+                ])
         )->values();
 
         // Cash entries that are neither sales nor expenses, for the ledger.
         $cashRecords = \App\Models\CashMovement::with('attachments')->orderByDesc('date')->orderByDesc('id')->get()
             ->filter(fn ($m) => $within($day($m->date, $m->created_at), $from, $to))->values()->map(fn ($m) => [
             'kind' => 'cash', 'type' => $m->type, 'wallet' => $m->wallet, 'ref' => $m->id,
+            'source' => $m->source, 'settled' => (bool) $m->handover_id,
+            'unconfirmed' => $m->type === 'handover' && ! $m->confirmed_at,
+            // What this entry does to each wallet, signed.
+            'w' => [
+                'income' => in_array($m->type, ['transfer', 'handover'], true) || ($m->type === 'cash_out' && ! in_array($m->wallet, ['petty', 'owner'], true)) ? -(int) $m->amount : 0,
+                'owner' => $m->type === 'handover' ? (int) $m->amount : (($m->type === 'cash_out' && $m->wallet === 'owner') || ($m->type === 'topup' && $m->source === 'owner') ? -(int) $m->amount : 0),
+                'petty' => in_array($m->type, ['topup', 'transfer'], true) ? (int) $m->amount : ($m->type === 'cash_out' && $m->wallet === 'petty' ? -(int) $m->amount : 0),
+            ],
+            // A handover lists the receipts it moved to the owner and what it settled.
+            'covers' => $m->type === 'handover' ? $parts->where('handover_id', $m->id)->values()->map(fn ($p) => ['label' => $p['label'], 'part' => $p['part_label'], 'amount' => $p['amount']]) : [],
+            'settles' => $m->type === 'handover' ? (int) Expense::where('handover_id', $m->id)->sum('amount') + (int) \App\Models\CashMovement::where('handover_id', $m->id)->sum('amount') : 0,
             'name' => \App\Models\CashMovement::TYPES[$m->type] ?? 'Cash entry',
-            'category' => $m->type === 'topup' ? 'From owner' : ($m->type === 'transfer' ? 'Income Cash to Petty Cash' : 'From '.($m->wallet === 'petty' ? 'Petty Cash' : 'Income Cash')),
+            'category' => $m->type === 'topup' ? ($m->source === 'owner' ? 'From Owner Cash' : "From owner's pocket")
+                : ($m->type === 'transfer' ? 'Manager Cash to Petty Cash'
+                : ($m->type === 'handover' ? 'Manager Cash to Owner Cash'
+                : 'From '.(\App\Support\Cashbook::WALLETS[$m->wallet] ?? 'Manager Cash'))),
             'detail' => (string) $m->note,
             'receipts' => $m->attachments,
             'quantity' => 1,
@@ -957,6 +1036,18 @@ class PageController extends Controller
         return view('expenses', [
             'cash'          => $cashNow,
             'cashView'      => $cashView,
+            // For the handover form: every receipt still with the manager, whatever the period,
+            // and what he has paid out of that cash since the last handover.
+            'handoverParts' => $parts->where('holder', 'manager')->sortByDesc('date')->values()->map(fn ($p) => [
+                'key' => $p['key'], 'label' => $p['label'], 'part' => $p['part_label'], 'group' => $p['group'], 'date' => $p['date'], 'amount' => $p['amount'],
+            ]),
+            'unsettled'     => \App\Support\Cashbook::unsettled(),
+            // For the owner: what others have recorded as received by him, not yet confirmed.
+            'toConfirm'     => $parts->where('unconfirmed', true)->values()->map(fn ($p) => [
+                'key' => $p['key'], 'label' => $p['label'], 'what' => $p['part_label'].' received by Owner', 'date' => $p['date'], 'amount' => $p['amount'],
+            ])->concat(\App\Models\CashMovement::where('type', 'handover')->whereNull('confirmed_at')->orderBy('date')->get()->map(fn ($m) => [
+                'key' => 'h:'.$m->id, 'label' => 'Handover to Owner', 'what' => trim('Cash handed over by the manager '.($m->note ? '· '.$m->note : '')), 'date' => substr((string) $m->date, 0, 10), 'amount' => (int) $m->amount,
+            ]))->values(),
             'period'        => $period,
             'cashRecords'   => $cashRecords,
             'roomIncome'    => $roomIncome,
@@ -995,7 +1086,7 @@ class PageController extends Controller
         $data = $r->validate([
             'name'=>'required','category'=>'nullable|string|max:120','custom_category'=>'nullable|string|max:255','quantity'=>'nullable|integer',
             'amount'=>'nullable|integer','date'=>'nullable',
-            'paid_from'=>'nullable|in:income,petty',
+            'paid_from'=>'nullable|in:income,petty,owner',
         ]);
 
         if (filled($data['custom_category'] ?? null)) {
@@ -1017,7 +1108,7 @@ class PageController extends Controller
         $data = $r->validate([
             'name'=>'required','category'=>'nullable|string|max:120','custom_category'=>'nullable|string|max:255','quantity'=>'nullable|integer',
             'amount'=>'nullable|integer','date'=>'nullable',
-            'paid_from'=>'nullable|in:income,petty',
+            'paid_from'=>'nullable|in:income,petty,owner',
         ]);
         if (filled($data['custom_category'] ?? null)) {
             $data['category'] = $data['custom_category'];

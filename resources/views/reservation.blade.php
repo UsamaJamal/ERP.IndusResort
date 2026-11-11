@@ -269,7 +269,12 @@ const roomUnits=@json($units);
 /* Room numbers come from the room-number list: only free rooms can be picked; booked ones are shown disabled. */
 function fillRoomUnits(type,keep){const sel=document.getElementById('bookingRoomNumber'),inp=document.getElementById('bookingRoomInput');const list=roomUnits.filter(u=>u.type===type);if(!list.length){sel.style.display='none';sel.disabled=true;inp.style.display='';inp.disabled=false;return;}inp.style.display='none';inp.disabled=true;sel.style.display='';sel.disabled=false;const free=list.filter(u=>u.status==='available').length;sel.innerHTML='<option value="">'+(free?'Select room number ('+free+' available)':'No rooms available')+'</option>'+list.map(u=>{const ok=u.status==='available'||u.number===keep;return '<option value="'+u.number+'"'+(ok?'':' disabled')+(u.number===keep?' selected':'')+'>Room '+u.number+(ok?'':' - '+u.status.replace('_',' '))+'</option>';}).join('');if(keep){sel.value=keep;inp.value=keep;}}
 const guestsById=@json($guests ?? []);
-function bookingFormTidy(){document.getElementById('partialPaymentFields').style.display='none';document.getElementById('advanceReceiptName').textContent='No file selected';document.getElementById('bookingFullEdit').value='';document.getElementById('bookingStatusWrap').style.display='';document.getElementById('bookingReceiptNow').innerHTML='';}
+function bookingFormTidy(){document.getElementById('partialPaymentFields').style.display='none';document.getElementById('advanceReceiptName').textContent='No file selected';document.getElementById('bookingFullEdit').value='';document.getElementById('bookingStatusWrap').style.display='';document.getElementById('bookingReceiptNow').innerHTML='';bookingHolders(null);}
+/* Who received the money. A part that has already gone to the owner in a handover is locked. */
+function bookingHolders(b){[['Advance','advance'],['Payment','payment']].forEach(([n,k])=>{const sel=document.getElementById('booking'+n+'Holder'),note=document.getElementById('booking'+n+'HolderNote');
+  sel.value=b?(b[k+'_holder']||'manager'):'manager';const locked=!!(b&&b[k+'_handover_id']);sel.disabled=locked;
+  note.textContent=locked?'This money was handed over to the owner. Remove that handover in Financials to change it.':(b&&b[k+'_holder']==='owner'&&!b[k+'_confirmed_at']?'Recorded as received by the owner. Waiting for the owner to confirm.':'');});
+  document.getElementById('bookingPaymentHolderLabel').textContent=b&&Number(b.advance_amount)>0?'Balance received by':'Payment received by';}
 function openBookingCreator(){const f=document.getElementById('bookingForm');f.reset();f.action='{{ url('/bookings') }}';document.getElementById('bookingMethod').value='';document.getElementById('bookingModalTitle').textContent='Add Reservation';bookingFormTidy();fillRoomUnits('');openModal('addBooking');}
 function openBookingEditor(id){const b=data.find(x=>x.id===id);if(!b)return;const f=document.getElementById('bookingForm');f.reset();f.action='{{ url('/bookings') }}/'+b.id;document.getElementById('bookingMethod').value='PUT';document.getElementById('bookingModalTitle').textContent='Edit Reservation '+b.code;bookingFormTidy();
  const g=guestsById[b.guest_id]||{};['guest_name','cnic','request','duration','check_in','check_out','guests','price_per_night','extra_charges','status','source'].forEach(k=>{if(f.elements[k])f.elements[k].value=(b[k]??'')===null?'':(k==='check_in'||k==='check_out')?String(b[k]||'').slice(0,10):(b[k]??'');});
@@ -284,7 +289,7 @@ function openBookingEditor(id){const b=data.find(x=>x.id===id);if(!b)return;cons
  document.getElementById('partialPaymentFields').style.display=part?'block':'none';
  /* Status moves only through Confirm / Check-in / Check-out, which record the time. */
  document.getElementById('bookingStatusWrap').style.display='none';
- attEditable('bookingReceiptNow',b.attachments,'No receipt attached yet.');
+ attEditable('bookingReceiptNow',b.attachments,'No receipt attached yet.');bookingHolders(b);
  document.getElementById('bookingFullEdit').value='1';
  openModal('addBooking');}
 /* Financials links here as /reservation?edit=ID to open a booking's form directly. */
@@ -354,6 +359,7 @@ document.getElementById('fDateEnd').addEventListener('change',applyFilters);
 applyFilters();
 (function(){const q=new URLSearchParams(location.search).get('q');if(q){['fSearch','mSearch'].forEach(i=>{const el=document.getElementById(i);if(el)el.value=q;});applyFilters();}})();
 </script>
+<style>.modal .holder-note{display:block;margin-top:5px;font-size:11.5px;color:#b3352f}.modal .holder-note:empty{display:none}</style>
 <div class="modal-ov" id="addBooking" data-sticky><div class="modal wide"><h3 id="bookingModalTitle">Add Reservation</h3><form id="bookingForm" method="POST" action="{{ url('/bookings') }}" enctype="multipart/form-data">@csrf<input type="hidden" name="_method" id="bookingMethod" value=""><input type="hidden" name="full_edit" id="bookingFullEdit" value="">
 @if($errors->any())<div style="margin:0 0 12px;padding:10px 12px;border-radius:9px;background:#fff0f0;color:#b3352f;font-size:13px">Please check the highlighted details below. @foreach($errors->all() as $error)<div style="margin-top:3px">• {{ $error }}</div>@endforeach</div>@endif
 <div class="msec">Guest details</div>
@@ -372,7 +378,11 @@ applyFilters();
 <label class="partial-payment-toggle"><input type="checkbox" name="partial_payment" value="1" onchange="document.getElementById('partialPaymentFields').style.display=this.checked?'block':'none'"><span><b>Partial Payment</b><small>Record the advance payment received from the guest</small></span></label>
 <div id="partialPaymentFields" class="partial-payment-fields">
 <label>Advance Amount (PKR)</label><input type="number" name="advance_amount" min="0" placeholder="Enter advance amount">
+<label style="margin-top:12px!important">Advance received by</label><select name="advance_holder" id="bookingAdvanceHolder"><option value="manager">Manager (at the resort)</option><option value="owner">Owner (paid to him directly)</option></select>
+<small class="holder-note" id="bookingAdvanceHolderNote"></small>
 </div>
+<label style="margin-top:14px!important" id="bookingPaymentHolderLabel">Payment received by</label><select name="payment_holder" id="bookingPaymentHolder"><option value="manager">Manager (at the resort)</option><option value="owner">Owner (paid to him directly)</option></select>
+<small class="holder-note" id="bookingPaymentHolderNote"></small>
 {{-- The receipt is offered on every reservation, not only part-paid ones. --}}
 <label style="margin-top:14px!important">Payment Receipts / Pictures <small style="font-weight:400;color:#8a927c">optional · one or several, image or PDF</small></label><label class="receipt-upload"><span>Upload receipts</span><small id="advanceReceiptName">No file selected</small><input type="file" name="receipts[]" multiple accept="image/*,.pdf" onchange="attPicked(this,'advanceReceiptName')"></label>
 <div id="bookingReceiptNow" class="rc-now"></div>
@@ -395,11 +405,12 @@ applyFilters();
 <p class="proof-intro">Attach the guest's payment proof to confirm <span class="proof-ref" id="paymentProofCode"></span>.</p>
 <label class="proof-label">Payment proof <small>REQUIRED</small></label><label class="proof-drop" id="paymentProofDrop"><span class="proof-drop-icon"><svg viewBox="0 0 24 24"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M5 20h14"/></svg></span><span class="proof-drop-text" id="paymentProofName">Upload payment proof<small>One or several files · JPG, PNG, WEBP or PDF · 5 MB each</small></span><input id="paymentProofInput" type="file" name="payment_proof[]" multiple accept="image/jpeg,image/png,image/webp,application/pdf" required onchange="setPaymentProofName(this)"></label>
 <p class="proof-note"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>Your uploaded file is stored securely with this reservation.</p>
+<label class="proof-label" style="margin-top:14px!important">Money received by</label><select name="received_by" id="paymentProofHolder"><option value="manager">Manager (at the resort)</option><option value="owner">Owner (paid to him directly)</option></select>
 <div class="mact"><button type="button" class="mbtn cancel" onclick="closeModal('paymentProofModal')">Cancel</button><button class="mbtn save">Attach &amp; Confirm</button></div>
 </form></div></div>
 <script>
 function setPaymentProofName(input){attPicked(input,'');const n=input.files.length,name=n>1?n+' files selected':(input.files[0]?.name||'');const el=document.getElementById('paymentProofName'),drop=document.getElementById('paymentProofDrop');el.innerHTML=name?`<span>${name}</span><small>Payment proof ready to attach</small>`:'Upload payment proof<small>One or several files · JPG, PNG, WEBP or PDF · 5 MB each</small>';drop.classList.toggle('has-file',Boolean(name));}
-function openPaymentProof(id,code){const form=document.getElementById('paymentProofForm');form.action='/bookings/'+id+'/confirm';document.getElementById('paymentProofCode').textContent=code?'#'+code:'this reservation';const input=document.getElementById('paymentProofInput');input.value='';setPaymentProofName(input);openModal('paymentProofModal');}
+function openPaymentProof(id,code){const form=document.getElementById('paymentProofForm');form.action='/bookings/'+id+'/confirm';document.getElementById('paymentProofCode').textContent=code?'#'+code:'this reservation';const input=document.getElementById('paymentProofInput');input.value='';setPaymentProofName(input);const bk=data.find(x=>x.id===id)||{};document.getElementById('paymentProofHolder').value=(Number(bk.partial_payment)?bk.advance_holder:bk.payment_holder)||'manager';openModal('paymentProofModal');}
 </script>
 <div class="modal-ov" id="stayStampModal"><div class="modal"><h3 id="stayStampTitle">Record Check-In</h3><form id="stayStampForm" method="POST">@csrf
 <p style="margin:10px 0 14px;color:#687076;font-size:13px" id="stayStampBooking"></p>

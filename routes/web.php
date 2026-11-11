@@ -86,6 +86,7 @@ Route::middleware('auth')->group(function () {
         // ---- Cash wallets: petty top-ups, transfers, cash out, and re-filing expenses ----
         Route::post('/cash', [CashController::class, 'store']);
         Route::get('/cash/report', [CashController::class, 'report']);
+        Route::post('/cash/handover', [CashController::class, 'handover']);
         Route::put('/cash/{id}', [CashController::class, 'update']);
         Route::post('/expenses/paid-from', [CashController::class, 'reassign']);
         Route::post('/kitchen/{id}/paid', [KitchenController::class, 'togglePaid']);
@@ -104,6 +105,8 @@ Route::middleware('auth')->group(function () {
         Route::delete('/room-units/{id}', [PageController::class, 'unitDestroy']);
         Route::delete('/kitchen/{id}', [KitchenController::class, 'destroy']);
         Route::delete('/cash/{id}', [CashController::class, 'destroy']);
+        // Only the owner can say that money recorded as his really reached him.
+        Route::post('/cash/confirm', [CashController::class, 'confirm']);
 
         // ---- Team accounts ----
         Route::get('/users', [UserController::class, 'index']);

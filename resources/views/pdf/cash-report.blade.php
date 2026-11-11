@@ -59,13 +59,13 @@ table{width:100%;border-collapse:collapse}
 
 {{-- 1. Balances --}}
 <div class="section">Cash summary</div>
-<table class="items"><thead><tr><th width="34%"></th><th width="22%" class="num">INCOME CASH</th><th width="22%" class="num">PETTY CASH</th><th width="22%" class="num">TOTAL</th></tr></thead><tbody>
-<tr><td>Opening balance<br><span class="sub">before {{ $d($st['from']) }}</span></td><td class="num {{ $neg($st['income']['opening']) }}">{{ $m($st['income']['opening']) }}</td><td class="num {{ $neg($st['petty']['opening']) }}">{{ $m($st['petty']['opening']) }}</td><td class="num {{ $neg($st['total']['opening']) }}">{{ $m($st['total']['opening']) }}</td></tr>
-<tr><td>Money in</td><td class="num in">{{ $m($st['income']['in']) }}</td><td class="num in">{{ $m($st['petty']['in']) }}</td><td class="num in">{{ $m($st['total']['in']) }}</td></tr>
-<tr><td>Money out</td><td class="num out">{{ $m($st['income']['out']) }}</td><td class="num out">{{ $m($st['petty']['out']) }}</td><td class="num out">{{ $m($st['total']['out']) }}</td></tr>
-<tr class="strong"><td>Closing balance<br><span class="sub">end of {{ $d($st['to']) }}</span></td><td class="num {{ $neg($st['income']['closing']) }}">{{ $m($st['income']['closing']) }}</td><td class="num {{ $neg($st['petty']['closing']) }}">{{ $m($st['petty']['closing']) }}</td><td class="num {{ $neg($st['total']['closing']) }}">{{ $m($st['total']['closing']) }}<br><span class="sub">Cash in hand</span></td></tr>
+<table class="items"><thead><tr><th width="28%"></th><th width="18%" class="num">MANAGER CASH</th><th width="18%" class="num">OWNER CASH</th><th width="18%" class="num">PETTY CASH</th><th width="18%" class="num">TOTAL</th></tr></thead><tbody>
+<tr><td>Opening balance<br><span class="sub">before {{ $d($st['from']) }}</span></td><td class="num {{ $neg($st['income']['opening']) }}">{{ $m($st['income']['opening']) }}</td><td class="num {{ $neg($st['owner']['opening']) }}">{{ $m($st['owner']['opening']) }}</td><td class="num {{ $neg($st['petty']['opening']) }}">{{ $m($st['petty']['opening']) }}</td><td class="num {{ $neg($st['total']['opening']) }}">{{ $m($st['total']['opening']) }}</td></tr>
+<tr><td>Money in</td><td class="num in">{{ $m($st['income']['in']) }}</td><td class="num in">{{ $m($st['owner']['in']) }}</td><td class="num in">{{ $m($st['petty']['in']) }}</td><td class="num in">{{ $m($st['total']['in']) }}</td></tr>
+<tr><td>Money out</td><td class="num out">{{ $m($st['income']['out']) }}</td><td class="num out">{{ $m($st['owner']['out']) }}</td><td class="num out">{{ $m($st['petty']['out']) }}</td><td class="num out">{{ $m($st['total']['out']) }}</td></tr>
+<tr class="strong"><td>Closing balance<br><span class="sub">end of {{ $d($st['to']) }}</span></td><td class="num {{ $neg($st['income']['closing']) }}">{{ $m($st['income']['closing']) }}</td><td class="num {{ $neg($st['owner']['closing']) }}">{{ $m($st['owner']['closing']) }}</td><td class="num {{ $neg($st['petty']['closing']) }}">{{ $m($st['petty']['closing']) }}</td><td class="num {{ $neg($st['total']['closing']) }}">{{ $m($st['total']['closing']) }}<br><span class="sub">Cash in hand</span></td></tr>
 </tbody></table>
-<div class="note">A transfer from Income Cash to Petty Cash counts as money out of one and into the other, but not in the Total column, because the cash never left the resort.</div>
+<div class="note">Money moved between wallets (a handover from the manager to the owner, a transfer into petty cash) counts as out of one and into the other, but not in the Total column, because it never left the business.@if($st['handovers'] > 0) The manager handed PKR {{ number_format($st['handovers']) }} to the owner in this period.@endif</div>
 
 {{-- 2. Where money came from --}}
 <div class="section">Where the money came from</div>
@@ -81,16 +81,16 @@ table{width:100%;border-collapse:collapse}
 
 {{-- 3. Where money went --}}
 <div class="section">Where the money went</div>
-@if($st['byCategory']->isEmpty() && $st['cashOut']['income'] + $st['cashOut']['petty'] === 0)
+@if($st['byCategory']->isEmpty() && array_sum($st['cashOut']) === 0)
 <div class="empty">No money went out during this period.</div>
 @else
-<table class="items"><thead><tr><th width="40%">EXPENSE CATEGORY</th><th width="20%" class="num">FROM INCOME</th><th width="20%" class="num">FROM PETTY</th><th width="20%" class="num">TOTAL</th></tr></thead><tbody>
+<table class="items"><thead><tr><th width="32%">EXPENSE CATEGORY</th><th width="17%" class="num">BY MANAGER</th><th width="17%" class="num">BY OWNER</th><th width="17%" class="num">FROM PETTY</th><th width="17%" class="num">TOTAL</th></tr></thead><tbody>
 @foreach($st['byCategory'] as $name => $row)
-<tr><td>{{ $name }} <span class="sub">({{ $row['count'] }})</span></td><td class="num">{{ $row['income'] ? $m($row['income']) : '—' }}</td><td class="num">{{ $row['petty'] ? $m($row['petty']) : '—' }}</td><td class="num out">{{ $m($row['amount']) }}</td></tr>
+<tr><td>{{ $name }} <span class="sub">({{ $row['count'] }})</span></td><td class="num">{{ $row['income'] ? $m($row['income']) : '—' }}</td><td class="num">{{ $row['owner'] ? $m($row['owner']) : '—' }}</td><td class="num">{{ $row['petty'] ? $m($row['petty']) : '—' }}</td><td class="num out">{{ $m($row['amount']) }}</td></tr>
 @endforeach
-<tr class="strong"><td>All expenses</td><td class="num">{{ $m($st['expenseTotal']['income']) }}</td><td class="num">{{ $m($st['expenseTotal']['petty']) }}</td><td class="num">{{ $m($st['expenseTotal']['amount']) }}</td></tr>
-@if($st['cashOut']['income'] + $st['cashOut']['petty'] > 0)
-<tr><td>Cash out <span class="sub">handed over or banked, not an expense</span></td><td class="num">{{ $st['cashOut']['income'] ? $m($st['cashOut']['income']) : '—' }}</td><td class="num">{{ $st['cashOut']['petty'] ? $m($st['cashOut']['petty']) : '—' }}</td><td class="num out">{{ $m($st['cashOut']['income'] + $st['cashOut']['petty']) }}</td></tr>
+<tr class="strong"><td>All expenses</td><td class="num">{{ $m($st['expenseTotal']['income']) }}</td><td class="num">{{ $m($st['expenseTotal']['owner']) }}</td><td class="num">{{ $m($st['expenseTotal']['petty']) }}</td><td class="num">{{ $m($st['expenseTotal']['amount']) }}</td></tr>
+@if(array_sum($st['cashOut']) > 0)
+<tr><td>Cash out <span class="sub">taken out of the business, not an expense</span></td><td class="num">{{ $st['cashOut']['income'] ? $m($st['cashOut']['income']) : '—' }}</td><td class="num">{{ $st['cashOut']['owner'] ? $m($st['cashOut']['owner']) : '—' }}</td><td class="num">{{ $st['cashOut']['petty'] ? $m($st['cashOut']['petty']) : '—' }}</td><td class="num out">{{ $m(array_sum($st['cashOut'])) }}</td></tr>
 @endif
 </tbody></table>
 @endif
@@ -99,7 +99,7 @@ table{width:100%;border-collapse:collapse}
 <div class="section">Profit for the period</div>
 <table class="items"><tbody>
 <tr><td width="74%">Income earned <span class="sub">room bookings and kitchen sales</span></td><td class="num in">{{ $m($st['profit']['earned']) }}</td></tr>
-<tr><td>Expenses <span class="sub">from either wallet</span></td><td class="num out">{{ $m($st['profit']['spent']) }}</td></tr>
+<tr><td>Expenses <span class="sub">whoever paid them</span></td><td class="num out">{{ $m($st['profit']['spent']) }}</td></tr>
 <tr class="strong"><td>Net profit</td><td class="num {{ $neg($st['profit']['net']) }}">{{ $m($st['profit']['net']) }}</td></tr>
 </tbody></table>
 <div class="note">Money sent by the owner is not income, so it raises cash but not profit.</div>
@@ -110,14 +110,15 @@ table{width:100%;border-collapse:collapse}
 @if($st['entries']->isEmpty())
 <div class="empty">There are no entries in this date range.</div>
 @else
-<table class="items"><thead><tr><th width="13%">DATE</th><th width="37%">ENTRY</th><th width="18%">TYPE</th><th width="16%" class="num">INCOME CASH</th><th width="16%" class="num">PETTY CASH</th></tr></thead><tbody>
+<table class="items"><thead><tr><th width="12%">DATE</th><th width="32%">ENTRY</th><th width="17%">TYPE</th><th width="13%" class="num">MANAGER</th><th width="13%" class="num">OWNER</th><th width="13%" class="num">PETTY</th></tr></thead><tbody>
 @foreach($st['entries'] as $e)
 <tr>
 <td>{{ \Carbon\Carbon::parse($e['date'])->format('d M Y') }}</td>
 <td>{{ $e['label'] }}@if($e['detail'])<br><span class="sub">{{ $e['detail'] }}</span>@endif</td>
 <td>{{ $e['group'] === 'Expenses' ? $e['category'] : $e['group'] }}</td>
-<td class="num {{ $e['income'] > 0 ? 'in' : ($e['income'] < 0 ? 'out' : '') }}">{{ $e['income'] ? ($e['income'] > 0 ? '+ ' : '- ').number_format(abs($e['income'])) : '—' }}</td>
-<td class="num {{ $e['petty'] > 0 ? 'in' : ($e['petty'] < 0 ? 'out' : '') }}">{{ $e['petty'] ? ($e['petty'] > 0 ? '+ ' : '- ').number_format(abs($e['petty'])) : '—' }}</td>
+@foreach(['income', 'owner', 'petty'] as $wk)
+<td class="num {{ $e[$wk] > 0 ? 'in' : ($e[$wk] < 0 ? 'out' : '') }}">{{ $e[$wk] ? ($e[$wk] > 0 ? '+ ' : '- ').number_format(abs($e[$wk])) : '—' }}</td>
+@endforeach
 </tr>
 @endforeach
 </tbody></table>

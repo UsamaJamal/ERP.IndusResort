@@ -73,7 +73,7 @@ class KitchenController extends Controller
                 'note' => $data['note'] ?? null,
                 'order_date' => $data['order_date'] ?? now()->toDateString(),
                 'user_id' => auth()->id(),
-            ]);
+            ] + $this->holderChange(null, $data['received_by'] ?? null));
             $order->update(['code' => 'KO-'.str_pad((string) $order->id, 5, '0', STR_PAD_LEFT)]);
             $this->writeLines($order, $data['items']);
 
@@ -99,7 +99,7 @@ class KitchenController extends Controller
                 'payment_status' => $data['type'] === 'complimentary' ? 'paid' : $data['payment_status'],
                 'note' => $data['note'] ?? null,
                 'order_date' => $data['order_date'] ?? $order->order_date,
-            ]);
+            ] + $this->holderChange($order, $data['received_by'] ?? null));
             $order->items()->delete();
             $this->writeLines($order, $data['items']);
         });
@@ -110,9 +110,25 @@ class KitchenController extends Controller
         return back()->with('ok', 'Order '.$order->code.' updated.');
     }
 
+    /**
+     * Who received an order's money. Unchanged, or already handed over to the owner,
+     * means nothing to change; a non-owner saying the owner received it waits for him.
+     */
+    private function holderChange(?KitchenOrder $order, $holder): array
+    {
+        if (! in_array($holder, ['manager', 'owner'], true) || ($order && ($order->handover_id || $order->received_by === $holder))) {
+            return [];
+        }
+
+        return ['received_by' => $holder, 'owner_confirmed_at' => $holder === 'owner' && auth()->user()->role === 'admin' ? now() : null];
+    }
+
     public function togglePaid($id)
     {
         $order = KitchenOrder::findOrFail($id);
+        if ($order->payment_status === 'paid' && $order->handover_id) {
+            return back()->with('ok', 'Order '.$order->code.' is part of a handover to the owner. Remove that handover first.');
+        }
         $order->update(['payment_status' => $order->payment_status === 'paid' ? 'unpaid' : 'paid']);
 
         return back()->with('ok', 'Order '.$order->code.' marked '.$order->payment_status.'.');
@@ -137,6 +153,7 @@ class KitchenController extends Controller
             'payment_status' => ['required', Rule::in(['paid', 'unpaid'])],
             'note' => 'nullable|string|max:255',
             'order_date' => 'nullable|date',
+            'received_by' => ['nullable', Rule::in(['manager', 'owner'])],
             'items' => 'required|array|min:1|max:60',
             'items.*.name' => 'required|string|max:120',
             'items.*.quantity' => 'required|integer|min:1|max:999',

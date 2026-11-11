@@ -8,133 +8,192 @@ use App\Models\Expense;
 use App\Models\KitchenOrder;
 
 /**
- * Where the resort's cash is right now.
+ * Where the resort's cash is, and who is holding it.
  *
  * This is deliberately separate from profit. Profit is income minus every expense,
- * whichever wallet paid for it. Cash is what should physically be on hand:
+ * whoever paid for it. Cash is what each holder should physically have:
  *
- *   income cash = money received from bookings and the kitchen
- *                 - expenses paid from income - transfers to petty - cash taken out
- *   petty cash  = owner top-ups + transfers from income
- *                 - expenses paid from petty - cash taken out
+ *   manager cash = money the manager received from bookings and the kitchen
+ *                  - expenses he paid from it - transfers to petty - cash taken out
+ *                  - what he has handed over to the owner
+ *   owner cash   = money the owner received directly + handovers from the manager
+ *                  - expenses the owner paid - cash he took out
+ *                  - petty top-ups he funded from this cash
+ *   petty cash   = owner top-ups + transfers from manager cash
+ *                  - expenses paid from petty - cash taken out
  *
- * Owner top-ups are never income, so they raise cash without raising profit.
+ * A top-up from the owner's own pocket is new money: it raises cash without raising
+ * profit. In the arrays below the manager's wallet keeps its original key, `income`.
  */
 class Cashbook
 {
-    public static function balances(): array
+    public const WALLETS = ['income' => 'Manager Cash', 'owner' => 'Owner Cash', 'petty' => 'Petty Cash'];
+
+    /**
+     * Every receipt of money, one row per part: a booking paid in two goes (advance,
+     * then the balance) is two parts, because each can be received by a different person.
+     *
+     * `received_by` is who took the money. `holder` is who has it now: money the
+     * manager received moves to the owner once a handover covers it.
+     */
+    public static function parts()
     {
-        // A booking's cash is its full amount once paid; before that, only the advance
-        // has actually been received.
-        $bookingCash = (int) Booking::all()->sum(function ($b) {
-            if ($b->invoice_status === 'paid') {
-                return (int) $b->amount;
+        $day = fn ($value, $fallback = null) => ($d = substr((string) ($value ?: $fallback), 0, 10)) !== '' ? $d : null;
+        $rows = collect();
+        $part = function (array $p) use ($rows) {
+            $p['holder'] = $p['received_by'] === 'owner' || $p['handover_id'] ? 'owner' : 'manager';
+            // Only money a non-owner says the owner received needs the owner's word.
+            $p['unconfirmed'] = $p['received_by'] === 'owner' && ! $p['confirmed'];
+            $rows->push($p);
+        };
+
+        foreach (Booking::all() as $b) {
+            $paid = $b->invoice_status === 'paid';
+            $advance = (int) $b->advance_amount > 0 ? min((int) ($b->amount ?: $b->advance_amount), (int) $b->advance_amount) : 0;
+            $rest = $paid ? max(0, (int) $b->amount - $advance) : 0;
+            $base = [
+                'source' => 'booking', 'id' => $b->id, 'date' => $day($b->check_in, $b->created_at),
+                'label' => $b->code.' · '.$b->guest_name,
+                'detail' => trim(($b->room_type ?: '').($b->room_number ? ' · Room '.$b->room_number : '')),
+                'group' => 'Room Bookings', 'category' => 'Room Booking', 'paid' => $paid,
+            ];
+            if ($advance > 0) {
+                $part($base + [
+                    'key' => 'b:'.$b->id.':advance', 'part' => 'advance', 'amount' => $advance,
+                    'part_label' => $rest > 0 || ! $paid ? 'Advance' : 'Payment',
+                    'received_by' => $b->advance_holder === 'owner' ? 'owner' : 'manager',
+                    'handover_id' => $b->advance_handover_id, 'confirmed' => (bool) $b->advance_confirmed_at,
+                ]);
             }
+            if ($rest > 0) {
+                $part($base + [
+                    'key' => 'b:'.$b->id.':payment', 'part' => 'payment', 'amount' => $rest,
+                    'part_label' => $advance > 0 ? 'Balance' : 'Payment',
+                    'received_by' => $b->payment_holder === 'owner' ? 'owner' : 'manager',
+                    'handover_id' => $b->payment_handover_id, 'confirmed' => (bool) $b->payment_confirmed_at,
+                ]);
+            }
+        }
 
-            return (int) $b->advance_amount > 0 ? min((int) ($b->amount ?: $b->advance_amount), (int) $b->advance_amount) : 0;
-        });
-        $kitchenCash = (int) KitchenOrder::sales()->sum('total');
+        foreach (KitchenOrder::sales()->get() as $o) {
+            $part([
+                'key' => 'k:'.$o->id, 'source' => 'kitchen', 'id' => $o->id, 'part' => 'payment', 'part_label' => 'Payment',
+                'date' => $day($o->order_date, $o->created_at), 'amount' => (int) $o->total,
+                'label' => $o->code.($o->customer_name ? ' · '.$o->customer_name : ''), 'detail' => 'Restaurant order',
+                'group' => 'Kitchen Sales', 'category' => 'Kitchen Sales', 'paid' => true,
+                'received_by' => $o->received_by === 'owner' ? 'owner' : 'manager',
+                'handover_id' => $o->handover_id, 'confirmed' => (bool) $o->owner_confirmed_at,
+            ]);
+        }
 
-        $expIncome = (int) Expense::where('paid_from', '!=', 'petty')->sum('amount');
-        $expPetty = (int) Expense::where('paid_from', 'petty')->sum('amount');
-
-        $topups = (int) CashMovement::where('type', 'topup')->sum('amount');
-        $transfers = (int) CashMovement::where('type', 'transfer')->sum('amount');
-        $outIncome = (int) CashMovement::where('type', 'cash_out')->where('wallet', 'income')->sum('amount');
-        $outPetty = (int) CashMovement::where('type', 'cash_out')->where('wallet', 'petty')->sum('amount');
-
-        $income = $bookingCash + $kitchenCash - $expIncome - $transfers - $outIncome;
-        $petty = $topups + $transfers - $expPetty - $outPetty;
-
-        return [
-            'income' => $income,
-            'petty' => $petty,
-            'total' => $income + $petty,
-            'received' => $bookingCash + $kitchenCash,
-            'booking_cash' => $bookingCash,
-            'kitchen_cash' => $kitchenCash,
-            'topups' => $topups,
-            'transfers' => $transfers,
-            'expenses_income' => $expIncome,
-            'expenses_petty' => $expPetty,
-            'out_income' => $outIncome,
-            'out_petty' => $outPetty,
-        ];
+        return $rows;
     }
 
     /**
-     * Every dated event that moves cash, as one flat list. `income` and `petty` are the
-     * signed change to each wallet; `profit` is the signed effect on profit, which is
-     * zero for top-ups, transfers and cash-outs because they are not earnings or costs.
+     * What the manager has paid out of the cash he holds that no handover has settled
+     * yet. The next handover takes all of it off what he owes the owner.
+     */
+    public static function unsettled()
+    {
+        $rows = collect();
+        foreach (Expense::whereNull('handover_id')->where(fn ($q) => $q->whereNull('paid_from')->orWhereNotIn('paid_from', ['petty', 'owner']))->get() as $e) {
+            $rows->push(['kind' => 'expense', 'id' => $e->id, 'label' => $e->name, 'detail' => $e->category ?: 'Expense',
+                'date' => substr((string) ($e->date ?: $e->created_at), 0, 10), 'amount' => (int) $e->amount]);
+        }
+        foreach (CashMovement::whereNull('handover_id')->where(fn ($q) => $q->where('type', 'transfer')->orWhere(fn ($w) => $w->where('type', 'cash_out')->where('wallet', 'income')))->get() as $m) {
+            $rows->push(['kind' => 'cash', 'id' => $m->id, 'label' => CashMovement::TYPES[$m->type] ?? 'Cash entry', 'detail' => (string) $m->note,
+                'date' => substr((string) ($m->date ?: $m->created_at), 0, 10), 'amount' => (int) $m->amount]);
+        }
+
+        return $rows->sortBy('date')->values();
+    }
+
+    /**
+     * Every dated event that moves cash, as one flat list. `income`, `owner` and `petty`
+     * are the signed change to each wallet; `profit` is the signed effect on profit,
+     * which is zero for top-ups, transfers, handovers and cash-outs.
      *
      * A booking has no payment date of its own, so it is dated by check-in, falling
      * back to the day it was created when no check-in has been set.
      */
     public static function entries()
     {
-        $day = fn ($value, $fallback = null) => $value ? substr((string) $value, 0, 10) : ($fallback ? substr((string) $fallback, 0, 10) : null);
+        $day = fn ($value, $fallback = null) => ($d = substr((string) ($value ?: $fallback), 0, 10)) !== '' ? $d : null;
         $rows = collect();
 
-        foreach (Booking::all() as $b) {
-            $cash = $b->invoice_status === 'paid'
-                ? (int) $b->amount
-                : ((int) $b->advance_amount > 0 ? min((int) ($b->amount ?: $b->advance_amount), (int) $b->advance_amount) : 0);
-            if ($cash <= 0) {
-                continue;
-            }
+        foreach (self::parts() as $p) {
+            $toOwner = $p['received_by'] === 'owner';
             $rows->push([
-                'date' => $day($b->check_in, $b->created_at),
-                'group' => 'Room Bookings',
-                'label' => $b->code.' · '.$b->guest_name,
-                'detail' => trim(($b->room_type ?: '').($b->room_number ? ' · Room '.$b->room_number : '')).($b->invoice_status === 'paid' ? '' : ' (advance)'),
-                'category' => 'Room Booking',
-                'income' => $cash, 'petty' => 0, 'profit' => $cash,
-            ]);
-        }
-
-        foreach (KitchenOrder::sales()->get() as $o) {
-            $rows->push([
-                'date' => $day($o->order_date, $o->created_at),
-                'group' => 'Kitchen Sales',
-                'label' => $o->code.($o->customer_name ? ' · '.$o->customer_name : ''),
-                'detail' => 'Restaurant order',
-                'category' => 'Kitchen Sales',
-                'income' => (int) $o->total, 'petty' => 0, 'profit' => (int) $o->total,
+                'date' => $p['date'], 'group' => $p['group'], 'label' => $p['label'],
+                'detail' => trim($p['detail'].($p['source'] === 'booking' && ! $p['paid'] ? ' (advance)' : '').' · received by '.($toOwner ? 'Owner' : 'Manager'), ' ·'),
+                'category' => $p['category'],
+                'income' => $toOwner ? 0 : $p['amount'], 'owner' => $toOwner ? $p['amount'] : 0, 'petty' => 0,
+                'profit' => $p['amount'],
             ]);
         }
 
         foreach (Expense::all() as $e) {
-            $petty = $e->paid_from === 'petty';
+            $wallet = in_array($e->paid_from, ['petty', 'owner'], true) ? $e->paid_from : 'income';
             $rows->push([
-                'date' => $day($e->date, $e->created_at),
-                'group' => 'Expenses',
-                'label' => $e->name,
-                'detail' => 'Paid from '.($petty ? 'Petty Cash' : 'Income Cash'),
+                'date' => $day($e->date, $e->created_at), 'group' => 'Expenses', 'label' => $e->name,
+                'detail' => 'Paid from '.self::WALLETS[$wallet],
                 'category' => $e->category ?: 'Uncategorised',
-                'income' => $petty ? 0 : -(int) $e->amount,
-                'petty' => $petty ? -(int) $e->amount : 0,
+                'income' => $wallet === 'income' ? -(int) $e->amount : 0,
+                'owner' => $wallet === 'owner' ? -(int) $e->amount : 0,
+                'petty' => $wallet === 'petty' ? -(int) $e->amount : 0,
                 'profit' => -(int) $e->amount,
             ]);
         }
 
         foreach (CashMovement::all() as $m) {
             $amount = (int) $m->amount;
-            [$group, $income, $pettyDelta] = [
-                'topup' => ['Owner Top-ups', 0, $amount],
-                'transfer' => ['Transfers (Income to Petty)', -$amount, $amount],
-                'cash_out' => ['Cash Out', $m->wallet === 'petty' ? 0 : -$amount, $m->wallet === 'petty' ? -$amount : 0],
-            ][$m->type] ?? ['Other', 0, 0];
+            $delta = ['income' => 0, 'owner' => 0, 'petty' => 0];
+            $group = 'Other';
+            if ($m->type === 'topup') {
+                $group = 'Owner Top-ups';
+                $delta['petty'] = $amount;
+                if ($m->source === 'owner') {
+                    $delta['owner'] = -$amount;
+                }
+            } elseif ($m->type === 'transfer') {
+                $group = 'Transfers (Manager to Petty)';
+                $delta['income'] = -$amount;
+                $delta['petty'] = $amount;
+            } elseif ($m->type === 'handover') {
+                $group = 'Handovers (Manager to Owner)';
+                $delta['income'] = -$amount;
+                $delta['owner'] = $amount;
+            } elseif ($m->type === 'cash_out') {
+                $group = 'Cash Out';
+                $delta[in_array($m->wallet, ['petty', 'owner'], true) ? $m->wallet : 'income'] = -$amount;
+            }
             $rows->push([
-                'date' => $day($m->date, $m->created_at),
-                'group' => $group,
+                'date' => $day($m->date, $m->created_at), 'group' => $group,
                 'label' => CashMovement::TYPES[$m->type] ?? 'Cash entry',
-                'detail' => (string) $m->note,
-                'category' => $group,
-                'income' => $income, 'petty' => $pettyDelta, 'profit' => 0,
-            ]);
+                'detail' => (string) $m->note, 'category' => $group,
+                'profit' => 0,
+            ] + $delta);
         }
 
         return $rows->sortBy('date')->values();
+    }
+
+    /** What each wallet holds right now. */
+    public static function balances(): array
+    {
+        $all = self::entries();
+        $parts = self::parts();
+        $income = (int) $all->sum('income');
+        $owner = (int) $all->sum('owner');
+        $petty = (int) $all->sum('petty');
+
+        return [
+            'income' => $income, 'manager' => $income, 'owner' => $owner, 'petty' => $petty,
+            'total' => $income + $owner + $petty,
+            // Money the manager says went to the owner, which the owner has not confirmed yet.
+            'unconfirmed' => (int) $parts->where('unconfirmed', true)->sum('amount')
+                + (int) CashMovement::where('type', 'handover')->whereNull('confirmed_at')->sum('amount'),
+        ];
     }
 
     /**
@@ -155,15 +214,25 @@ class Cashbook
             return ['opening' => $opening, 'in' => $in, 'out' => $out, 'closing' => $opening + $in - $out];
         };
         $income = $wallet('income');
+        $owner = $wallet('owner');
         $petty = $wallet('petty');
 
+        // What a row does to the cash as a whole. Moving money between wallets (a transfer,
+        // a handover, a top-up out of owner cash) nets to nothing, so it is not counted
+        // as money coming in or going out of the business.
+        $net = fn ($r) => $r['income'] + $r['owner'] + $r['petty'];
+        $totalIn = (int) $period->sum(fn ($r) => max(0, $net($r)));
+        $totalOut = (int) $period->sum(fn ($r) => max(0, -$net($r)));
+        $opening = $income['opening'] + $owner['opening'] + $petty['opening'];
+
         // Money in by source, and money out by expense category.
-        $sources = $period->filter(fn ($r) => $r['income'] > 0 || $r['petty'] > 0)
-            ->groupBy('group')->map(fn ($g) => ['count' => $g->count(), 'amount' => (int) $g->sum(fn ($r) => max(0, $r['income']) + max(0, $r['petty']))]);
+        $sources = $period->filter(fn ($r) => $net($r) > 0)
+            ->groupBy('group')->map(fn ($g) => ['count' => $g->count(), 'amount' => (int) $g->sum($net)]);
         $expenses = $period->where('group', 'Expenses');
         $byCategory = $expenses->groupBy('category')->map(fn ($g) => [
             'count' => $g->count(),
             'income' => (int) -$g->sum('income'),
+            'owner' => (int) -$g->sum('owner'),
             'petty' => (int) -$g->sum('petty'),
             'amount' => (int) -$g->sum('profit'),
         ])->sortByDesc('amount');
@@ -174,18 +243,13 @@ class Cashbook
 
         return [
             'from' => $from, 'to' => $to,
-            'income' => $income, 'petty' => $petty,
-            'total' => [
-                'opening' => $income['opening'] + $petty['opening'],
-                // A transfer leaves one wallet and enters the other, so it is not new cash overall.
-                'in' => $income['in'] + $petty['in'] - (int) $period->where('group', 'Transfers (Income to Petty)')->sum('petty'),
-                'out' => $income['out'] + $petty['out'] - (int) $period->where('group', 'Transfers (Income to Petty)')->sum('petty'),
-                'closing' => $income['closing'] + $petty['closing'],
-            ],
+            'income' => $income, 'owner' => $owner, 'petty' => $petty,
+            'total' => ['opening' => $opening, 'in' => $totalIn, 'out' => $totalOut, 'closing' => $opening + $totalIn - $totalOut],
             'sources' => $sources,
             'byCategory' => $byCategory,
-            'expenseTotal' => ['income' => (int) -$expenses->sum('income'), 'petty' => (int) -$expenses->sum('petty'), 'amount' => $spent],
-            'cashOut' => ['income' => (int) -$cashOut->sum('income'), 'petty' => (int) -$cashOut->sum('petty')],
+            'expenseTotal' => ['income' => (int) -$expenses->sum('income'), 'owner' => (int) -$expenses->sum('owner'), 'petty' => (int) -$expenses->sum('petty'), 'amount' => $spent],
+            'cashOut' => ['income' => (int) -$cashOut->sum('income'), 'owner' => (int) -$cashOut->sum('owner'), 'petty' => (int) -$cashOut->sum('petty')],
+            'handovers' => (int) $period->where('group', 'Handovers (Manager to Owner)')->sum('owner'),
             'profit' => ['earned' => $earned, 'spent' => $spent, 'net' => $earned - $spent],
             'entries' => $period,
         ];

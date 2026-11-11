@@ -31,8 +31,9 @@ function showInvoice(id){const b=INV[id];const c=invCalc(b);const paid=b.invoice
   </div>
   <div style="margin-top:16px;display:flex;gap:8px">
    <button class="mbtn save" style="flex:1" onclick="downloadInvoice(${b.id})">⤓ Download</button>
-   @if(auth()->user()->role!=='staff')<button class="mbtn cancel" style="flex:1" onclick="post('/invoices/${b.id}/toggle','POST')">${paid?'Mark Unpaid':'Mark Paid'}</button>@endif
+   @if(auth()->user()->role!=='staff')${paid?`<button class="mbtn cancel" style="flex:1" onclick="post('/invoices/${b.id}/toggle','POST')">Mark Unpaid</button>`:`<button class="mbtn cancel" style="flex:1" onclick="post('/invoices/${b.id}/toggle','POST',{received_by:document.getElementById('invHolder').value})">Mark Paid</button>`}@endif
   </div>
+  @if(auth()->user()->role!=='staff')${paid?'':`<div style="margin-top:10px;display:flex;align-items:center;gap:8px;font-size:13px;color:#555"><span style="white-space:nowrap">Balance received by</span><select id="invHolder" style="flex:1;height:38px;border:1px solid #dfe8e2;border-radius:9px;padding:0 10px;background:#fff"><option value="manager">Manager (at the resort)</option><option value="owner">Owner (paid to him directly)</option></select></div>`}@endif
  </div>`;
  showDetail('', html);
 }

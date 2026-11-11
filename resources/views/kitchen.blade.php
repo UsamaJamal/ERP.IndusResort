@@ -176,6 +176,8 @@ a.ib.proof{color:#1e4f8f;border-color:#cfe0f7;background:#f3f8ff}
         'payment_status' => $o->payment_status,
         'note' => $o->note,
         'proofs' => $o->attachments,
+        'received_by' => $o->received_by ?: 'manager',
+        'handed' => (bool) $o->handover_id,
         'order_date' => $o->order_date,
         'time' => optional($o->created_at)->format('g:i A'),
         'date_label' => \Carbon\Carbon::parse($o->order_date)->format('M j, Y'),
@@ -273,8 +275,9 @@ a.ib.proof{color:#1e4f8f;border-color:#cfe0f7;background:#f3f8ff}
 <button type="button" class="kt-addline" onclick="addLine()">+ Add item</button>
 <datalist id="ktNames">@foreach($suggestions as $s)<option value="{{ $s['name'] }}"></option>@endforeach</datalist>
 <div class="kt-sum"><span id="oSumLabel">Order total</span><b id="oSum">PKR 0</b></div>
-<div class="mrow">
+<div class="mrow three">
     <div id="oPayWrap"><label>Payment</label><select name="payment_status" id="oPay"><option value="paid">Paid</option><option value="unpaid">Unpaid (pay later)</option></select></div>
+    <div id="oHolderWrap"><label>Money received by</label><select name="received_by" id="oHolder"><option value="manager">Manager (at the resort)</option><option value="owner">Owner (paid to him directly)</option></select></div>
     <div><label>Note</label><input name="note" id="oNote" placeholder="Optional"></div>
 </div>
 <label>Payment Proof <span style="color:#9ca3af;font-weight:400">(optional: one or several screenshots, card slips or PDFs)</span></label>
@@ -308,8 +311,9 @@ a.ib.proof{color:#1e4f8f;border-color:#cfe0f7;background:#f3f8ff}
 </div>
 <label>Paid from</label>
 <select name="paid_from">
-    <option value="income">Income Cash (PKR {{ number_format($cash['income']) }} available)</option>
+    <option value="income">Manager Cash (PKR {{ number_format($cash['income']) }} available)</option>
     <option value="petty">Petty Cash (PKR {{ number_format($cash['petty']) }} available)</option>
+    <option value="owner">Owner Cash (PKR {{ number_format($cash['owner']) }} available) · the owner paid it himself</option>
 </select>
 <div class="mact"><button type="button" class="mbtn cancel" onclick="closeModal('addKitchenCost')">Cancel</button><button class="mbtn save">Save Cost</button></div>
 </form></div></div>
@@ -404,6 +408,7 @@ function syncType(){
     const t = document.getElementById('oType').value;
     document.getElementById('oRoomWrap').style.display = t === 'room_guest' ? '' : 'none';
     document.getElementById('oPayWrap').style.visibility = t === 'complimentary' ? 'hidden' : 'visible';
+    document.getElementById('oHolderWrap').style.visibility = t === 'complimentary' ? 'hidden' : 'visible';
     document.getElementById('oSumLabel').textContent = t === 'complimentary' ? 'Value (not charged)' : 'Order total';
 }
 /* Financials links here as /kitchen?edit=ID to open an order's form directly. */
@@ -420,6 +425,8 @@ function openOrder(id){
     document.getElementById('orderSave').textContent = o ? 'Save Changes' : 'Save Order';
     document.getElementById('oProofName').textContent = 'No file attached';
     attEditable('oProofNow', o ? o.proofs : []);
+    // Once the money has gone to the owner in a handover, who received it is settled.
+    const oh = document.getElementById('oHolder'); oh.value = o ? o.received_by : 'manager'; oh.disabled = !!(o && o.handed);
     if (o) {
         document.getElementById('oType').value = o.type;
         document.getElementById('oCustomer').value = o.customer_name || '';
