@@ -782,7 +782,7 @@ class PageController extends Controller
         $fmt = fn ($d) => \Carbon\Carbon::parse($d)->format('j M Y');
         if ($key === 'all') {
             return ['key' => 'all', 'from' => null, 'to' => null, 'prevFrom' => null, 'prevTo' => null,
-                'label' => 'All time', 'word' => '', 'compare' => null];
+                'label' => 'All time', 'word' => '', 'compare' => null, 'none' => 'all time'];
         }
         if ($key === 'custom') {
             [$from, $to] = [$r->query('from'), $r->query('to')];
@@ -795,7 +795,8 @@ class PageController extends Controller
             return ['key' => 'custom', 'from' => $from, 'to' => $to,
                 'prevFrom' => (clone $prevTo)->subDays($days - 1)->toDateString(), 'prevTo' => $prevTo->toDateString(),
                 'label' => $fmt($from).' – '.$fmt($to), 'word' => 'in this range',
-                'compare' => 'from the '.$days.' '.($days === 1 ? 'day' : 'days').' before'];
+                'compare' => 'from the '.$days.' '.($days === 1 ? 'day' : 'days').' before',
+                'none' => 'nothing in the '.$days.' '.($days === 1 ? 'day' : 'days').' before to compare'];
         }
         $start = $key === 'last_month' ? now()->startOfMonth()->subMonthNoOverflow() : now()->startOfMonth();
         $prev = (clone $start)->subMonthNoOverflow();
@@ -803,7 +804,7 @@ class PageController extends Controller
         return ['key' => $key, 'from' => $start->toDateString(), 'to' => (clone $start)->endOfMonth()->toDateString(),
             'prevFrom' => $prev->toDateString(), 'prevTo' => (clone $prev)->endOfMonth()->toDateString(),
             'label' => $start->format('F Y'), 'word' => $key === 'last_month' ? 'last month' : 'this month',
-            'compare' => 'from '.$prev->format('F')];
+            'compare' => 'from '.$prev->format('F'), 'none' => 'nothing in '.$prev->format('F').' to compare'];
     }
 
     public function expenses(Request $request)
@@ -838,7 +839,8 @@ class PageController extends Controller
         $totalIncome  = $roomIncome + $kitchenIncome;
 
         // The cards compare the period with the one before it; all time has nothing to compare with.
-        $change = fn ($current, $previous) => $previous ? round((($current - $previous) / abs($previous)) * 100, 2) : ($current ? 100 : 0);
+        // With nothing in the earlier period there is no percentage to give, so the card says so.
+        $change = fn ($current, $previous) => $previous ? round((($current - $previous) / abs($previous)) * 100, 2) : null;
         $balanceChange = $incomeChange = $expenseChange = null;
         if ($period['prevFrom'] !== null) {
             [$pf, $pt] = [$period['prevFrom'], $period['prevTo']];
